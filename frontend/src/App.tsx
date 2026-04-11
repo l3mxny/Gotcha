@@ -50,16 +50,20 @@ function App() {
       canvas.width = img.width
       canvas.height = img.height
       ctx.drawImage(img, 0, 0)
-      for (const p of predictions) {
+      for (const [i, p] of predictions.entries()) {
         const x = p.x - p.width / 2
         const y = p.y - p.height / 2
         const color = boxColor(p.confidence)
         ctx.strokeStyle = color
         ctx.lineWidth = 3
         ctx.strokeRect(x, y, p.width, p.height)
-        ctx.fillStyle = color
+        const label = `PERSON ${i + 1}  ${(p.confidence * 100).toFixed(0)}%`
         ctx.font = 'bold 14px monospace'
-        ctx.fillText(`${(p.confidence * 100).toFixed(0)}%`, x + 4, y - 6)
+        const textW = ctx.measureText(label).width
+        ctx.fillStyle = color
+        ctx.fillRect(x, y - 20, textW + 8, 20)
+        ctx.fillStyle = '#000'
+        ctx.fillText(label, x + 4, y - 5)
       }
     }
     img.src = `data:image/jpeg;base64,${base64}`
