@@ -1,34 +1,76 @@
 <!DOCTYPE html>
 <html>
-<body style="background:black;display:flex;flex-direction:column;align-items:center;">
-<h2 style="color:white">📷 Sending frames...</h2>
-<video id="video" autoplay playsinline style="width:100%"></video>
+<body style="background:black;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;font-family:sans-serif;">
+
+<h2 style="color:white;margin:0">📷 Gotcha Camera</h2>
+
+<div style="display:flex;align-items:center;gap:8px;">
+  <div id="status-dot" style="width:12px;height:12px;border-radius:50%;background:#666"></div>
+  <span id="status-text" style="color:#aaa;font-size:14px">Connecting...</span>
+</div>
+
+<div style="display:flex;gap:8px;">
+  <button id="live-btn" onclick="setMode('live')"
+    style="padding:8px 16px;background:#fff;color:#000;border:none;border-radius:6px;cursor:pointer;font-size:14px">
+    Live Camera
+  </button>
+  <button id="rec-btn" onclick="setMode('recorded')"
+    style="padding:8px 16px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">
+    Recorded Video
+  </button>
+</div>
+
+<video id="video" autoplay playsinline muted loop style="width:100%"></video>
 <canvas id="canvas" hidden></canvas>
 
 <script>
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const BACKEND = 'https://shakable-angling-onshore.ngrok-free.dev';
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const BACKEND = window.location.origin;
 
-  navigator.mediaDevices.getUserMedia({ 
-    video: { facingMode: 'environment' }
-  }).then(stream => {
-    video.srcObject = stream;
-  });
+  function setMode(mode) {
+    const liveBtn = document.getElementById('live-btn');
+    const recBtn = document.getElementById('rec-btn');
+    liveBtn.style.background = mode === 'live' ? '#fff' : '#333';
+    liveBtn.style.color = mode === 'live' ? '#000' : '#fff';
+    recBtn.style.background = mode === 'recorded' ? '#fff' : '#333';
+    recBtn.style.color = mode === 'recorded' ? '#000' : '#fff';
 
-  setInterval(() => {
-    canvas.width = 640;
-    canvas.height = 640;
-    canvas.getContext('2d').drawImage(video, 0, 0, 640, 640);
-    canvas.toBlob(blob => {
-      const form = new FormData();
-      form.append('frame', blob, 'frame.jpg');
-      fetch(`${BACKEND}/detect`, { 
-        method: 'POST', 
-        body: form 
-      }).catch(e => console.log('frame dropped'));
-    }, 'image/jpeg', 0.8);
-  }, 1000);
+    if (mode === 'live') {
+      video.srcObject = null;
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => { video.srcObject = stream; });
+    } else {
+      video.srcObject = null;
+      video.src = `${BACKEND}/demo-video`;
+      video.play();
+    }
+  }
+
+  function setStatus(ok) {
+    statusDot.style.background = ok ? '#22c55e' : '#ef4444';
+    statusText.textContent = ok ? 'Sending frames' : 'Backend unreachable';
+  }
+
+  setMode('live');
+
+  setInterval(() => {
+    canvas.width = 640;
+    canvas.height = 640;
+    canvas.getContext('2d').drawImage(video, 0, 0, 640, 640);
+    canvas.toBlob(blob => {
+      const form = new FormData();
+      form.append('frame', blob, 'frame.jpg');
+      fetch(`${BACKEND}/detect`, {
+        method: 'POST',
+        body: form
+      })
+        .then(r => setStatus(r.ok || r.status === 429))
+        .catch(() => setStatus(false));
+    }, 'image/jpeg', 0.8);
+  }, 500);
 </script>
 </body>
 </html>
