@@ -1,20 +1,66 @@
 from flask import Flask, request, jsonify, send_file
 from flask_socketio import SocketIO
+from flask_cors import CORS
 from detector import run_inference
 from collections import deque
 import time
 import os
 import tempfile
 import base64
-
+import sqlite3
+import pathlib
 
 app = Flask(__name__)
+CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # confidence window - stores last 5 detections
 recent_detections = deque(maxlen=5)
 incident_log = []
 is_processing = False
+
+# rolling buffer of last 5 frames (bytes) for evidence capture
+frame_buffer = deque(maxlen=5)
+alert_active = False
+
+# evidence folder and database
+EVIDENCE_DIR = pathlib.Path(__file__).parent / 'evidence'
+EVIDENCE_DIR.mkdir(exist_ok=True)
+DB_PATH = pathlib.Path(__file__).parent / 'evidence.db'
+
+def init_db():
+    con = sqlite3.connect(DB_PATH)
+    con.execute('''
+        CREATE TABLE IF NOT EXISTS incidents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            confidence REAL,
+            folder TEXT
+        )
+    ''')
+    con.commit()
+    con.close()
+
+init_db()
+
+def save_evidence(confidence):
+    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    folder = EVIDENCE_DIR / timestamp
+    folder.mkdir(exist_ok=True)
+
+    for i, frame_bytes in enumerate(frame_buffer):
+        with open(folder / f'frame_{i}.jpg', 'wb') as f:
+            f.write(frame_bytes)
+
+    con = sqlite3.connect(DB_PATH)
+    con.execute(
+        'INSERT INTO incidents (timestamp, confidence, folder) VALUES (?, ?, ?)',
+        (timestamp, confidence, str(folder))
+    )
+    con.commit()
+    con.close()
+
+    return timestamp
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -35,12 +81,16 @@ def detect():
             file.save(tmp.name)
             predictions = run_inference(tmp.name)
             with open(tmp.name, 'rb') as f:
-                frame_b64 = base64.b64encode(f.read()).decode('utf-8')
+                frame_bytes = f.read()
+                frame_b64 = base64.b64encode(frame_bytes).decode('utf-8')
         os.unlink(tmp.name)
+
+        # add frame to rolling buffer
+        frame_buffer.append(frame_bytes)
 
         # check if any prediction is theft
         theft_detected = any(
-            p['class'] == '1' and p['confidence'] > 0.35
+            p['class'].lower() in ('1', 'shoplifting', 'theft', 'stealing') and p['confidence'] > 0.35
             for p in predictions
         )
 
@@ -48,15 +98,23 @@ def detect():
         recent_detections.append(1 if theft_detected else 0)
 
         # alert if theft in 2 of last 5 frames
+        global alert_active
         alert = False
         if sum(recent_detections) >= 2:
             alert = True
-            incident = {
-                "time": time.strftime("%H:%M:%S"),
-                "confidence": max((p['confidence'] for p in predictions), default=0)
-            }
-            incident_log.append(incident)
-            socketio.emit('alert', incident)
+            if not alert_active:
+                alert_active = True
+                top_confidence = max((p['confidence'] for p in predictions), default=0)
+                timestamp = save_evidence(top_confidence)
+                incident = {
+                    "time": time.strftime("%H:%M:%S"),
+                    "confidence": top_confidence,
+                    "timestamp": timestamp
+                }
+                incident_log.append(incident)
+                socketio.emit('alert', incident)
+        else:
+            alert_active = False
 
         # push result to dashboard
         socketio.emit('detection', {
@@ -75,6 +133,31 @@ def detect():
     finally:
         is_processing = False
 
+@app.route('/evidence', methods=['GET'])
+def get_evidence():
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    rows = con.execute('SELECT * FROM incidents ORDER BY id DESC').fetchall()
+    con.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/evidence/<int:incident_id>/frames', methods=['GET'])
+def get_evidence_frames(incident_id):
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    row = con.execute('SELECT * FROM incidents WHERE id = ?', (incident_id,)).fetchone()
+    con.close()
+    if not row:
+        return jsonify({"error": "Incident not found"}), 404
+    folder = pathlib.Path(row['folder'])
+    frames = []
+    for i in range(5):
+        frame_path = folder / f'frame_{i}.jpg'
+        if frame_path.exists():
+            with open(frame_path, 'rb') as f:
+                frames.append(base64.b64encode(f.read()).decode('utf-8'))
+    return jsonify({"incident": dict(row), "frames": frames})
+
 @app.route('/incidents', methods=['GET'])
 def get_incidents():
     return jsonify(incident_log)
@@ -89,13 +172,12 @@ def phone():
 
 @app.route('/demo-video')
 def demo_video():
-    # place your demo video in the backend folder named demo.mp4 or demo.mov
-    # falls back to IMG_7614.MOV if nothing else found
     for name in ['demo.mp4', 'demo.mov', 'demo.MOV', 'IMG_7614.MOV']:
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
         if os.path.exists(path):
             return send_file(path)
     return jsonify({"error": "No demo video found. Add demo.mp4 to the backend folder."}), 404
+
 if __name__ == '__main__':
     print("Starting server on http://0.0.0.0:5001")
     socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
