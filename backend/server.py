@@ -5,6 +5,7 @@ from detector import run_inference
 from twilio.rest import Client as TwilioClient
 from twilio.twiml.voice_response import VoiceResponse
 from collections import deque
+from call911_api import bp as call911_bp
 import time
 import os
 import tempfile
@@ -12,8 +13,9 @@ import base64
 import sqlite3
 import pathlib
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
+app.register_blueprint(call911_bp)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # confidence window - stores last 5 detections
@@ -165,17 +167,32 @@ def trigger_alert():
     try:
         data = request.get_json()
         description = data.get('description', 'Unknown suspect') if data else 'Unknown suspect'
+        message = f"Security alert. Shoplifting detected. Suspect description: {description}. Please review the camera feed immediately."
+
+        elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
+        elevenlabs_voice_id = os.getenv('ELEVENLABS_VOICE_ID')
 
         twilio_client = TwilioClient(
             os.getenv('TWILIO_ACCOUNT_SID'),
             os.getenv('TWILIO_AUTH_TOKEN')
         )
 
-        response = VoiceResponse()
-        response.say(
-            f"Security alert. Shoplifting detected. Suspect description: {description}. Please review the camera feed immediately.",
-            voice='alice'
-        )
+        # Use ElevenLabs TTS if configured, otherwise fall back to alice
+        if elevenlabs_api_key and elevenlabs_voice_id:
+            from services.elevenlabs_service import synthesize_mp3
+            import uuid
+            mp3_bytes = synthesize_mp3(api_key=elevenlabs_api_key, voice_id=elevenlabs_voice_id, text=message)
+            filename = f"{uuid.uuid4().hex}.mp3"
+            audio_path = pathlib.Path(__file__).parent / 'static' / 'generated_audio' / filename
+            audio_path.parent.mkdir(parents=True, exist_ok=True)
+            audio_path.write_bytes(mp3_bytes)
+            public_url = os.getenv('PUBLIC_SERVER_URL', '').rstrip('/')
+            audio_url = f"{public_url}/static/generated_audio/{filename}"
+            response = VoiceResponse()
+            response.play(audio_url)
+        else:
+            response = VoiceResponse()
+            response.say(message, voice='alice')
 
         twilio_client.calls.create(
             twiml=str(response),
