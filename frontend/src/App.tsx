@@ -36,16 +36,20 @@ function App() {
   const [demoMode, setDemoMode] = useState(readDemoTheftFlag())
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
 
-  function boxColor(confidence: number): string {
-    if (confidence >= 0.85) return '#f87171'  // red — high risk
-    if (confidence >= 0.35) return '#fbbf24'  // amber — elevated
-    return '#4ade80'                           // green — low
+  function boxColor(risk: number): string {
+    if (risk >= 0.80) return '#f87171'   // red — 80-100%
+    if (risk >= 0.50) return '#fbbf24'   // yellow — 50-79%
+    return '#4ade80'                      // green — 0-49%
+  }
+
+  function riskScore(p: { class: string; confidence: number }): number {
+    return p.class === '1' ? p.confidence : 1 - p.confidence
   }
 
   function drawFrame(
     canvas: HTMLCanvasElement,
     base64: string,
-    predictions: { confidence: number; x: number; y: number; width: number; height: number }[],
+    predictions: { class: string; confidence: number; x: number; y: number; width: number; height: number }[],
   ) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -57,11 +61,12 @@ function App() {
       for (const [i, p] of predictions.entries()) {
         const x = p.x - p.width / 2
         const y = p.y - p.height / 2
-        const color = boxColor(p.confidence)
+        const risk = riskScore(p)
+        const color = boxColor(risk)
         ctx.strokeStyle = color
         ctx.lineWidth = 3
         ctx.strokeRect(x, y, p.width, p.height)
-        const label = `PERSON ${i + 1}  ${(p.confidence * 100).toFixed(0)}%`
+        const label = `PERSON ${i + 1}  ${(risk * 100).toFixed(0)}%`
         ctx.font = 'bold 14px monospace'
         const textW = ctx.measureText(label).width
         ctx.fillStyle = color
@@ -84,7 +89,7 @@ function App() {
         setCustomers(data.predictions.map((p, i) => ({
           id: `person-${i + 1}`,
           description: `PERSON ${i + 1}`,
-          riskScore: p.class === '1' ? p.confidence : 0.05,
+          riskScore: riskScore(p),
         })))
       }
 
@@ -105,8 +110,8 @@ function App() {
     () => ({
       emergencyTelHref: 'tel:911',
       riskThresholds: {
-        elevated: 0.35,
-        theft: 0.85,
+        elevated: 0.50,
+        theft: 0.80,
       },
     }),
     [],
