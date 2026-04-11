@@ -35,7 +35,7 @@ function App() {
   function boxColor(confidence: number): string {
     if (confidence >= 0.85) return '#f87171'  // red — high risk
     if (confidence >= 0.35) return '#fbbf24'  // amber — elevated
-    return '#4ade80'                           // green — low
+    return '#4ade80'                          // green — low
   }
 
   function drawFrame(
@@ -50,20 +50,16 @@ function App() {
       canvas.width = img.width
       canvas.height = img.height
       ctx.drawImage(img, 0, 0)
-      for (const [i, p] of predictions.entries()) {
+      for (const p of predictions) {
         const x = p.x - p.width / 2
         const y = p.y - p.height / 2
         const color = boxColor(p.confidence)
         ctx.strokeStyle = color
         ctx.lineWidth = 3
         ctx.strokeRect(x, y, p.width, p.height)
-        const label = `PERSON ${i + 1}  ${(p.confidence * 100).toFixed(0)}%`
-        ctx.font = 'bold 14px monospace'
-        const textW = ctx.measureText(label).width
         ctx.fillStyle = color
-        ctx.fillRect(x, y - 20, textW + 8, 20)
-        ctx.fillStyle = '#000'
-        ctx.fillText(label, x + 4, y - 5)
+        ctx.font = 'bold 14px monospace'
+        ctx.fillText(`${(p.confidence * 100).toFixed(0)}%`, x + 4, y - 6)
       }
     }
     img.src = `data:image/jpeg;base64,${base64}`
@@ -80,7 +76,7 @@ function App() {
         setCustomers(data.predictions.map((p, i) => ({
           id: `person-${i + 1}`,
           description: `PERSON ${i + 1}`,
-          riskScore: p.class === '1' ? p.confidence : 0.05,
+          riskScore: p.confidence,
         })))
       }
 
@@ -97,9 +93,35 @@ function App() {
     }
   }, [hasLiveFrame])
 
+  // NEW FUNCTION: Handles calling the backend to trigger the AI Call
+  const handleEmergencyIntent = async () => {
+    const worstCustomer = customers.reduce<Customer | null>(
+      (best, c) => (!best || c.riskScore > best.riskScore ? c : best),
+      null,
+    );
+
+    const description = worstCustomer?.description || "Unknown suspect";
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/trigger-alert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description }),
+      });
+      
+      if (res.ok) {
+        console.log("Automated security call initiated!");
+      } else {
+        console.error("Failed to trigger call");
+      }
+    } catch (error) {
+      console.error("Error triggering call:", error);
+    }
+  };
+
   const config: StorefrontRuntimeConfig = useMemo(
     () => ({
-      emergencyTelHref: 'tel:911',
+      emergencyTelHref: '#', // Changed to prevent opening native phone dialer
       riskThresholds: {
         elevated: 0.35,
         theft: 0.85,
@@ -136,6 +158,7 @@ function App() {
         alertLevel={alertLevel}
         theftFeed={theftFeed}
         canvasRef={canvasRef}
+        onEmergencyIntent={handleEmergencyIntent} // Passed to Home here!
       />
       {import.meta.env.DEV ? (
         <div className="app-devrail">
