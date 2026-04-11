@@ -1,3 +1,4 @@
+import { type RefObject } from 'react'
 import { EmergencyCallButton } from '../components/EmergencyCallButton'
 import { CustomerWatchlist } from '../components/CustomerWatchlist'
 import { ThreatVideoPanel } from '../components/ThreatVideoPanel'
@@ -14,6 +15,7 @@ export interface HomeProps {
   config: StorefrontRuntimeConfig
   alertLevel: AlertLevel
   theftFeed: TheftFeedPayload
+  frameImgRef: RefObject<HTMLImageElement | null>
   /** Optional handler when emergency link is used (logging, etc.). */
   onEmergencyIntent?: () => void
 }
@@ -23,9 +25,11 @@ export function Home({
   config,
   alertLevel,
   theftFeed,
+  frameImgRef,
   onEmergencyIntent,
 }: HomeProps) {
   const theftActive = alertLevel === 'theft'
+  const videoActive = theftActive || !!theftFeed.videoSrc
 
   const focused = theftFeed.customerId
     ? customers.find((c) => c.id === theftFeed.customerId)
@@ -37,7 +41,7 @@ export function Home({
   const focusDescription = focused?.description ?? null
 
   return (
-    <div className={`home-shell${theftActive ? ' home-shell--theft' : ''}`}>
+    <div className={`home-shell${videoActive ? ' home-shell--theft' : ''}`}>
       <header className="home-top">
         <h1 className="home-brand">Customer watchlist</h1>
         {theftActive ? (
@@ -60,14 +64,15 @@ export function Home({
           />
         </div>
         <div
-          className={`home-grid__video${theftActive ? ' home-grid__video--visible' : ''}`}
-          aria-hidden={!theftActive}
+          className={`home-grid__video${videoActive ? ' home-grid__video--visible' : ''}`}
+          aria-hidden={!videoActive}
         >
-          {theftActive ? (
+          {videoActive ? (
             <ThreatVideoPanel
               videoSrc={theftFeed.videoSrc}
               posterSrc={theftFeed.posterSrc}
               customerLabel={focusDescription}
+              frameImgRef={frameImgRef}
             />
           ) : null}
         </div>
