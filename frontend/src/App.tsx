@@ -75,19 +75,20 @@ function App() {
         alert: boolean
         frame?: string
       }) => {
-        if (demoPresetRef.current !== 'none') return
-
-        const preds = data.predictions ?? []
-        if (preds.length > 0) {
-          setCustomers(mapPredictionsToCustomers(preds))
+        // Watchlist is frozen while a demo preset is on; frames still stream
+        // so theft demo can show real phone / camera footage.
+        if (demoPresetRef.current === 'none') {
+          const preds = data.predictions ?? []
+          if (preds.length > 0) {
+            setCustomers(mapPredictionsToCustomers(preds))
+          }
         }
 
-        // update img DOM directly — no React state, no re-render lag
         if (data.frame) {
           if (frameImgRef.current) {
             frameImgRef.current.src = `data:image/jpeg;base64,${data.frame}`
           }
-          if (!hasLiveFrame) setHasLiveFrame(true)
+          setHasLiveFrame(true)
         }
       },
     )
@@ -95,7 +96,7 @@ function App() {
     return () => {
       socket.disconnect()
     }
-  }, [hasLiveFrame])
+  }, [])
 
   const config: StorefrontRuntimeConfig = useMemo(
     () => ({
