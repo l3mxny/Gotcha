@@ -1,0 +1,123 @@
+.evidence-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0a;
+  color: #f5f5f5;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.evidence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #262626;
+  flex-shrink: 0;
+}
+
+.evidence-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.evidence-count {
+  font-size: 0.7rem;
+  color: #666;
+  letter-spacing: 0.06em;
+}
+
+.evidence-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  overflow: hidden;
+}
+
+.evidence-list {
+  border-right: 1px solid #262626;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: #111;
+  padding: 8px;
+}
+
+.evidence-empty {
+  color: #555;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.evidence-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.evidence-item:hover {
+  background: #1a1a1a;
+}
+
+.evidence-item--active {
+  background: #1f1f1f;
+  border-color: #333;
+}
+
+.evidence-item__time {
+  font-size: 0.7rem;
+  color: #aaa;
+  font-family: ui-monospace, monospace;
+}
+
+.evidence-item__conf {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+}
+
+.evidence-frames {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.evidence-frames__label {
+  font-size: 0.75rem;
+  color: #aaa;
+  margin: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.evidence-filmstrip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.evidence-frame {
+  width: calc(20% - 7px);
+  min-width: 100px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #262626;
+  background: #111;
+}

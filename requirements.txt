@@ -1,0 +1,9 @@
+flask
+flask-socketio
+flask-cors
+roboflow
+pillow
+opencv-python
+inference
+supervision
+python-dotenv
