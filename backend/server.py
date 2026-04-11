@@ -5,6 +5,7 @@ from collections import deque
 import time
 import os
 import tempfile
+import base64
 
 
 app = Flask(__name__)
@@ -33,20 +34,22 @@ def detect():
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
             file.save(tmp.name)
             predictions = run_inference(tmp.name)
+            with open(tmp.name, 'rb') as f:
+                frame_b64 = base64.b64encode(f.read()).decode('utf-8')
         os.unlink(tmp.name)
 
         # check if any prediction is theft
         theft_detected = any(
-            p['class'] == '1' and p['confidence'] > 0.5
+            p['class'].lower() in ('1', 'shoplifting', 'theft', 'stealing') and p['confidence'] > 0.35
             for p in predictions
         )
 
         # add to confidence window
         recent_detections.append(1 if theft_detected else 0)
 
-        # alert if theft in 3 of last 5 frames
+        # alert if theft in 2 of last 5 frames
         alert = False
-        if sum(recent_detections) >= 3:
+        if sum(recent_detections) >= 2:
             alert = True
             incident = {
                 "time": time.strftime("%H:%M:%S"),
@@ -59,7 +62,8 @@ def detect():
         socketio.emit('detection', {
             "predictions": predictions,
             "alert": alert,
-            "recent": list(recent_detections)
+            "recent": list(recent_detections),
+            "frame": frame_b64
         })
 
         return jsonify({"status": "ok", "alert": alert})
@@ -82,6 +86,16 @@ def health():
 @app.route('/phone')
 def phone():
     return send_file('../frontend/phone.html')
+
+@app.route('/demo-video')
+def demo_video():
+    # place your demo video in the backend folder named demo.mp4 or demo.mov
+    # falls back to IMG_7614.MOV if nothing else found
+    for name in ['demo.mp4', 'demo.mov', 'demo.MOV', 'IMG_7614.MOV']:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+        if os.path.exists(path):
+            return send_file(path)
+    return jsonify({"error": "No demo video found. Add demo.mp4 to the backend folder."}), 404
 if __name__ == '__main__':
     print("Starting server on http://0.0.0.0:5001")
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
