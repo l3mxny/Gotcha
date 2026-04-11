@@ -9,7 +9,7 @@ project = rf.workspace().project("shoplifting-xwimk")
 model = project.version(1).model
 
 def run_inference(image_path):
-    result = model.predict(image_path, confidence=40).json()
+    result = model.predict(image_path, confidence=20, overlap=30).json()
     predictions = result["predictions"]
 
     for p in predictions:
