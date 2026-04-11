@@ -33,7 +33,6 @@ function App() {
   const [hasLiveFrame, setHasLiveFrame] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const demoModeRef = useRef(readDemoTheftFlag())
-  const [demoMode, setDemoMode] = useState(readDemoTheftFlag())
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
 
   function boxColor(risk: number): string {
@@ -75,7 +74,10 @@ function App() {
   }
 
   useEffect(() => {
-    const socket = io(BACKEND_URL, { transports: ['websocket', 'polling'] })
+    const socket = io(BACKEND_URL, {
+      transports: ['polling', 'websocket'],
+      extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
+    })
     socketRef.current = socket
 
     socket.on('detection', (data: { predictions: { class: string; confidence: number; x: number; y: number; width: number; height: number }[]; alert: boolean; frame?: string }) => {
@@ -114,7 +116,7 @@ function App() {
     try {
       const res = await fetch(`${BACKEND_URL}/trigger-alert`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({ description }),
       });
       
@@ -190,23 +192,6 @@ function App() {
         <Evidence />
       )}
 
-      {import.meta.env.DEV ? (
-        <div className="app-devrail">
-          <span className="app-devrail__label">Dev</span>
-          <button
-            type="button"
-            className="app-devrail__btn"
-            onClick={() => {
-              const nextDemo = !demoModeRef.current
-              demoModeRef.current = nextDemo
-              setDemoMode(nextDemo)
-              setCustomers(nextDemo ? MOCK_CUSTOMERS_THEFT : [])
-            }}
-          >
-            {demoMode ? 'Exit demo' : 'Toggle theft demo'}
-          </button>
-        </div>
-      ) : null}
     </div>
   )
 }

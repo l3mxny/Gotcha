@@ -44,15 +44,11 @@ export function Home({
     <div className={`home-shell${videoActive ? ' home-shell--theft' : ''}`}>
       <header className="home-top">
         <h1 className="home-brand">Customer watchlist</h1>
-        {theftActive ? (
-          <EmergencyCallButton
-            className="eg-call eg-call--header"
-            telHref={config.emergencyTelHref}
-            onCallIntent={onEmergencyIntent}
-          />
-        ) : (
-          <span className="home-top__spacer" aria-hidden />
-        )}
+        <EmergencyCallButton
+          className="eg-call eg-call--header"
+          telHref={config.emergencyTelHref}
+          onCallIntent={onEmergencyIntent}
+        />
       </header>
 
       <div className="home-grid">
