@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_socketio import SocketIO
 from detector import run_inference
 from collections import deque
 import time
 import os
 import tempfile
+
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -78,6 +79,9 @@ def get_incidents():
 def health():
     return jsonify({"status": "running"})
 
+@app.route('/phone')
+def phone():
+    return send_file('../frontend/phone.html')
 if __name__ == '__main__':
     print("Starting server on http://0.0.0.0:5001")
     socketio.run(app, host='0.0.0.0', port=5001, debug=True)
