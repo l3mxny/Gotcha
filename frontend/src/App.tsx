@@ -33,9 +33,9 @@ function App() {
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
 
   function boxColor(confidence: number): string {
-    if (confidence >= 0.85) return '#f87171'
-    if (confidence >= 0.35) return '#fbbf24'
-    return '#4ade80'
+    if (confidence >= 0.85) return '#f87171'  // red — high risk
+    if (confidence >= 0.35) return '#fbbf24'  // amber — elevated
+    return '#4ade80'                           // green — low
   }
 
   function drawFrame(
@@ -77,7 +77,6 @@ function App() {
       if (demoModeRef.current) return
 
       if (data.predictions.length > 0) {
-        console.log('predictions:', data.predictions)
         setCustomers(data.predictions.map((p, i) => ({
           id: `person-${i + 1}`,
           description: `PERSON ${i + 1}`,
