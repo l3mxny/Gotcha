@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<body style="background:black;display:flex;flex-direction:column;align-items:center;">
+<h2 style="color:white">📷 Sending frames...</h2>
+<video id="video" autoplay playsinline style="width:100%"></video>
+<canvas id="canvas" hidden></canvas>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const BACKEND = 'https://shakable-angling-onshore.ngrok-free.dev';
+
+  navigator.mediaDevices.getUserMedia({ 
+    video: { facingMode: 'environment' }
+  }).then(stream => {
+    video.srcObject = stream;
+  });
+
+  setInterval(() => {
+    canvas.width = 640;
+    canvas.height = 640;
+    canvas.getContext('2d').drawImage(video, 0, 0, 640, 640);
+    canvas.toBlob(blob => {
+      const form = new FormData();
+      form.append('frame', blob, 'frame.jpg');
+      fetch(`${BACKEND}/detect`, { 
+        method: 'POST', 
+        body: form 
+      }).catch(e => console.log('frame dropped'));
+    }, 'image/jpeg', 0.8);
+  }, 1000);
+</script>
+</body>
+</html>
