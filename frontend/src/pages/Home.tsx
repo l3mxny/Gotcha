@@ -40,6 +40,7 @@ export function Home({
 
   const focusDescription = focused?.description ?? null
 
+
   return (
     <div className={`home-shell${videoActive ? ' home-shell--theft' : ''}`}>
       <header className="home-top">

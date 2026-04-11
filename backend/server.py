@@ -193,6 +193,7 @@ def trigger_alert():
 def get_incidents():
     return jsonify(incident_log)
 
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "running"})
