@@ -1,11 +1,10 @@
 import { type CSSProperties, type RefObject } from 'react'
 
 export interface ThreatVideoPanelProps {
-  /** When null, shows a neutral placeholder until backend attaches a feed. */
   videoSrc: string | null
   posterSrc?: string | null
   customerLabel?: string | null
-  frameImgRef: RefObject<HTMLImageElement | null>
+  canvasRef: RefObject<HTMLCanvasElement | null>
   className?: string
   style?: CSSProperties
 }
@@ -13,7 +12,7 @@ export interface ThreatVideoPanelProps {
 export function ThreatVideoPanel({
   videoSrc,
   customerLabel,
-  frameImgRef,
+  canvasRef,
   className,
   style,
 }: ThreatVideoPanelProps) {
@@ -29,10 +28,9 @@ export function ThreatVideoPanel({
       }
     >
       {videoSrc ? (
-        <img
-          ref={frameImgRef}
+        <canvas
+          ref={canvasRef}
           className="threat-video__media"
-          alt={customerLabel ? `Live feed: ${customerLabel}` : 'Live feed'}
         />
       ) : (
         <div className="threat-video__placeholder">
