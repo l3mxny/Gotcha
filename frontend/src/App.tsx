@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import { Home } from './pages/Home'
+import { Evidence } from './pages/Evidence'
 import {
   alertLevelFromCustomers,
   type AlertLevel,
@@ -9,6 +10,8 @@ import {
   type TheftFeedPayload,
 } from './types'
 import './App.css'
+
+type Page = 'live' | 'evidence'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5001'
 
@@ -23,6 +26,7 @@ function readDemoTheftFlag(): boolean {
 }
 
 function App() {
+  const [page, setPage] = useState<Page>('live')
   const [customers, setCustomers] = useState<Customer[]>(() =>
     readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : [],
   )
@@ -130,13 +134,33 @@ function App() {
 
   return (
     <div className="app-root">
-      <Home
-        customers={customers}
-        config={config}
-        alertLevel={alertLevel}
-        theftFeed={theftFeed}
-        canvasRef={canvasRef}
-      />
+      <nav className="app-nav">
+        <button
+          className={`app-nav__btn${page === 'live' ? ' app-nav__btn--active' : ''}`}
+          onClick={() => setPage('live')}
+        >
+          Live
+        </button>
+        <button
+          className={`app-nav__btn${page === 'evidence' ? ' app-nav__btn--active' : ''}`}
+          onClick={() => setPage('evidence')}
+        >
+          Evidence
+        </button>
+      </nav>
+
+      {page === 'live' ? (
+        <Home
+          customers={customers}
+          config={config}
+          alertLevel={alertLevel}
+          theftFeed={theftFeed}
+          canvasRef={canvasRef}
+        />
+      ) : (
+        <Evidence />
+      )}
+
       {import.meta.env.DEV ? (
         <div className="app-devrail">
           <span className="app-devrail__label">Dev</span>

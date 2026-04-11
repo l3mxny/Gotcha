@@ -2,4 +2,5 @@
 .venv
 .venv311
 __pycache__
-*.pyc
+*.pycbackend/evidence/
+backend/evidence.db
