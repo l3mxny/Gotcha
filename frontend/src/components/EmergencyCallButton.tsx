@@ -12,7 +12,7 @@ export interface EmergencyCallButtonProps {
 
 export function EmergencyCallButton({
   telHref,
-  label = 'CALL 911',
+  label = 'ALERT SECURITY', // Changed label to fit the actual action
   className,
   style,
   onCallIntent,
@@ -23,7 +23,10 @@ export function EmergencyCallButton({
       style={style}
       href={telHref}
       role="button"
-      onClick={() => onCallIntent?.()}
+      onClick={(e) => {
+        e.preventDefault(); // Stop the '#' from jumping the page to the top
+        onCallIntent?.();
+      }}
     >
       <span className="eg-call__icon" aria-hidden>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
