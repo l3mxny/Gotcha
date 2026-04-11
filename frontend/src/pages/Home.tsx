@@ -15,7 +15,7 @@ export interface HomeProps {
   config: StorefrontRuntimeConfig
   alertLevel: AlertLevel
   theftFeed: TheftFeedPayload
-  frameImgRef: RefObject<HTMLImageElement | null>
+  canvasRef: RefObject<HTMLCanvasElement | null>
   /** Optional handler when emergency link is used (logging, etc.). */
   onEmergencyIntent?: () => void
 }
@@ -25,7 +25,7 @@ export function Home({
   config,
   alertLevel,
   theftFeed,
-  frameImgRef,
+  canvasRef,
   onEmergencyIntent,
 }: HomeProps) {
   const theftActive = alertLevel === 'theft'
@@ -72,7 +72,7 @@ export function Home({
               videoSrc={theftFeed.videoSrc}
               posterSrc={theftFeed.posterSrc}
               customerLabel={focusDescription}
-              frameImgRef={frameImgRef}
+              canvasRef={canvasRef}
             />
           ) : null}
         </div>

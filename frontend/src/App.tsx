@@ -27,20 +27,52 @@ function App() {
     readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : [],
   )
   const [hasLiveFrame, setHasLiveFrame] = useState(false)
-  const frameImgRef = useRef<HTMLImageElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const demoModeRef = useRef(readDemoTheftFlag())
   const [demoMode, setDemoMode] = useState(readDemoTheftFlag())
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
+
+  function boxColor(confidence: number): string {
+    if (confidence >= 0.85) return '#f87171'  // red — high risk
+    if (confidence >= 0.35) return '#fbbf24'  // amber — elevated
+    return '#4ade80'                           // green — low
+  }
+
+  function drawFrame(
+    canvas: HTMLCanvasElement,
+    base64: string,
+    predictions: { confidence: number; x: number; y: number; width: number; height: number }[],
+  ) {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const img = new Image()
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+      for (const p of predictions) {
+        const x = p.x - p.width / 2
+        const y = p.y - p.height / 2
+        const color = boxColor(p.confidence)
+        ctx.strokeStyle = color
+        ctx.lineWidth = 3
+        ctx.strokeRect(x, y, p.width, p.height)
+        ctx.fillStyle = color
+        ctx.font = 'bold 14px monospace'
+        ctx.fillText(`${(p.confidence * 100).toFixed(0)}%`, x + 4, y - 6)
+      }
+    }
+    img.src = `data:image/jpeg;base64,${base64}`
+  }
 
   useEffect(() => {
     const socket = io(BACKEND_URL, { transports: ['websocket', 'polling'] })
     socketRef.current = socket
 
-    socket.on('detection', (data: { predictions: { class: string; confidence: number }[]; alert: boolean; frame?: string }) => {
+    socket.on('detection', (data: { predictions: { class: string; confidence: number; x: number; y: number; width: number; height: number }[]; alert: boolean; frame?: string }) => {
       if (demoModeRef.current) return
 
       if (data.predictions.length > 0) {
-        console.log('predictions:', data.predictions)
         setCustomers(data.predictions.map((p, i) => ({
           id: `person-${i + 1}`,
           description: `PERSON ${i + 1}`,
@@ -48,10 +80,9 @@ function App() {
         })))
       }
 
-      // update img DOM directly — no React state, no re-render lag
       if (data.frame) {
-        if (frameImgRef.current) {
-          frameImgRef.current.src = `data:image/jpeg;base64,${data.frame}`
+        if (canvasRef.current) {
+          drawFrame(canvasRef.current, data.frame, data.predictions)
         }
         if (!hasLiveFrame) setHasLiveFrame(true)
       }
@@ -100,7 +131,7 @@ function App() {
         config={config}
         alertLevel={alertLevel}
         theftFeed={theftFeed}
-        frameImgRef={frameImgRef}
+        canvasRef={canvasRef}
       />
       {import.meta.env.DEV ? (
         <div className="app-devrail">
