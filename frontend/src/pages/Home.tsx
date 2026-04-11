@@ -1,7 +1,7 @@
+import { type RefObject } from 'react'
 import { EmergencyCallButton } from '../components/EmergencyCallButton'
 import { CustomerWatchlist } from '../components/CustomerWatchlist'
 import { ThreatVideoPanel } from '../components/ThreatVideoPanel'
-import { useVoice911Call } from '../hooks/useVoice911Call'
 import type {
   AlertLevel,
   Customer,
@@ -15,8 +15,7 @@ export interface HomeProps {
   config: StorefrontRuntimeConfig
   alertLevel: AlertLevel
   theftFeed: TheftFeedPayload
-  /** Base URL for Flask (e.g. http://127.0.0.1:5001). */
-  voiceApiBaseUrl: string
+  canvasRef: RefObject<HTMLCanvasElement | null>
   /** Optional handler when emergency link is used (logging, etc.). */
   onEmergencyIntent?: () => void
 }
@@ -26,10 +25,11 @@ export function Home({
   config,
   alertLevel,
   theftFeed,
-  voiceApiBaseUrl,
+  canvasRef,
   onEmergencyIntent,
 }: HomeProps) {
   const theftActive = alertLevel === 'theft'
+  const videoActive = theftActive || !!theftFeed.videoSrc
 
   const focused = theftFeed.customerId
     ? customers.find((c) => c.id === theftFeed.customerId)
@@ -40,42 +40,16 @@ export function Home({
 
   const focusDescription = focused?.description ?? null
 
-  const voice911 = useVoice911Call(voiceApiBaseUrl)
 
   return (
-    <div className={`home-shell${theftActive ? ' home-shell--theft' : ''}`}>
+    <div className={`home-shell${videoActive ? ' home-shell--theft' : ''}`}>
       <header className="home-top">
         <h1 className="home-brand">Customer watchlist</h1>
-        {theftActive ? (
-          <div className="home-call">
-            <EmergencyCallButton
-              variant="voice"
-              className="eg-call eg-call--header"
-              label="Call 911"
-              disabled={voice911.busy}
-              onVoiceClick={() =>
-                voice911.startVoiceCall(
-                  focusDescription
-                    ? `Theft alert. Focused customer descriptor: ${focusDescription}.`
-                    : 'Theft alert at the storefront.',
-                )
-              }
-              onCallIntent={onEmergencyIntent}
-            />
-            {voice911.phaseLabel ? (
-              <span className="home-call__status" aria-live="polite">
-                {voice911.phaseLabel}
-              </span>
-            ) : null}
-            {voice911.errorMessage ? (
-              <span className="home-call__err" role="alert">
-                {voice911.errorMessage}
-              </span>
-            ) : null}
-          </div>
-        ) : (
-          <span className="home-top__spacer" aria-hidden />
-        )}
+        <EmergencyCallButton
+          className="eg-call eg-call--header"
+          telHref={config.emergencyTelHref}
+          onCallIntent={onEmergencyIntent}
+        />
       </header>
 
       <div className="home-grid">
@@ -87,14 +61,15 @@ export function Home({
           />
         </div>
         <div
-          className={`home-grid__video${theftActive ? ' home-grid__video--visible' : ''}`}
-          aria-hidden={!theftActive}
+          className={`home-grid__video${videoActive ? ' home-grid__video--visible' : ''}`}
+          aria-hidden={!videoActive}
         >
-          {theftActive ? (
+          {videoActive ? (
             <ThreatVideoPanel
               videoSrc={theftFeed.videoSrc}
               posterSrc={theftFeed.posterSrc}
               customerLabel={focusDescription}
+              canvasRef={canvasRef}
             />
           ) : null}
         </div>

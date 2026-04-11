@@ -1,33 +1,25 @@
-from inference import get_model
-import supervision as sv
-import cv2
+from roboflow import Roboflow
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
+rf = Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
+project = rf.workspace().project("shoplifting-xwimk")
+model = project.version(1).model
+
 def run_inference(image_path):
-    model = get_model(
-    model_id="test-shoplifting-hsukh/1",
-    api_key=os.getenv("ROBOFLOW_API_KEY")
-)
-    
-    image = cv2.imread(image_path)
-    results = model.infer(image)[0]
-    detections = sv.Detections.from_inference(results)
-    
-    predictions = []
-    for i in range(len(detections)):
-        pred = {
-            "class": str(int(detections.class_id[i])),
-            "confidence": float(detections.confidence[i]),
-            "x": float(detections.xyxy[i][0]),
-            "y": float(detections.xyxy[i][1])
-        }
-        predictions.append(pred)
-        print(f"Class: {pred['class']}, Confidence: {pred['confidence']:.2f}")
-    
+    result = model.predict(image_path, confidence=20, overlap=30).json()
+    predictions = result["predictions"]
+
+    for p in predictions:
+        print(f"Class: {p['class']}, Confidence: {p['confidence']:.2f}")
+
     return predictions
 
 if __name__ == "__main__":
-    run_inference("test.jpg")
+    frames = sorted([f for f in os.listdir('.') if f.startswith('frame_') and f.endswith('.jpg')])
+    
+    for frame in frames:
+        print(f"\nTesting {frame}:")
+        run_inference(frame)
