@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, send_file
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from detector import run_inference
+from twilio.rest import Client as TwilioClient
+from twilio.twiml.voice_response import VoiceResponse
 from collections import deque
 import time
 import os
@@ -157,6 +159,35 @@ def get_evidence_frames(incident_id):
             with open(frame_path, 'rb') as f:
                 frames.append(base64.b64encode(f.read()).decode('utf-8'))
     return jsonify({"incident": dict(row), "frames": frames})
+
+@app.route('/trigger-alert', methods=['POST'])
+def trigger_alert():
+    try:
+        data = request.get_json()
+        description = data.get('description', 'Unknown suspect') if data else 'Unknown suspect'
+
+        twilio_client = TwilioClient(
+            os.getenv('TWILIO_ACCOUNT_SID'),
+            os.getenv('TWILIO_AUTH_TOKEN')
+        )
+
+        response = VoiceResponse()
+        response.say(
+            f"Security alert. Shoplifting detected. Suspect description: {description}. Please review the camera feed immediately.",
+            voice='alice'
+        )
+
+        twilio_client.calls.create(
+            twiml=str(response),
+            from_=os.getenv('TWILIO_FROM_NUMBER'),
+            to=os.getenv('MY_PHONE_NUMBER')
+        )
+
+        return jsonify({"status": "call initiated"})
+
+    except Exception as e:
+        print(f"Twilio error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/incidents', methods=['GET'])
 def get_incidents():

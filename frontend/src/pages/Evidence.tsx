@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { io } from 'socket.io-client'
 import './Evidence.css'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5001'
@@ -21,7 +22,7 @@ export function Evidence() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/evidence`)
+    fetch(`${BACKEND_URL}/evidence`, { headers: { 'ngrok-skip-browser-warning': 'true' } })
       .then(r => r.json())
       .then(setIncidents)
       .catch(() => {})
@@ -29,7 +30,7 @@ export function Evidence() {
 
   function loadIncident(id: number) {
     setLoading(true)
-    fetch(`${BACKEND_URL}/evidence/${id}/frames`)
+    fetch(`${BACKEND_URL}/evidence/${id}/frames`, { headers: { 'ngrok-skip-browser-warning': 'true' } })
       .then(r => r.json())
       .then((data: IncidentDetail) => {
         setSelected(data)
