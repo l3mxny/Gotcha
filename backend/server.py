@@ -40,7 +40,7 @@ def detect():
 
         # check if any prediction is theft
         theft_detected = any(
-            p['class'].lower() in ('1', 'shoplifting', 'theft', 'stealing') and p['confidence'] > 0.35
+            p['class'] == '1' and p['confidence'] > 0.35
             for p in predictions
         )
 

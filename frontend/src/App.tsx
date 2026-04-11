@@ -80,7 +80,7 @@ function App() {
         setCustomers(data.predictions.map((p, i) => ({
           id: `person-${i + 1}`,
           description: `PERSON ${i + 1}`,
-          riskScore: p.confidence,
+          riskScore: p.class === '1' ? p.confidence : 0.05,
         })))
       }
 
