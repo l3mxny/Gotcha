@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import { Home } from './pages/Home'
+import { Evidence } from './pages/Evidence'
 import {
   alertLevelFromCustomers,
   type AlertLevel,
@@ -9,6 +10,8 @@ import {
   type TheftFeedPayload,
 } from './types'
 import './App.css'
+
+type Page = 'live' | 'evidence'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5001'
 
@@ -23,6 +26,7 @@ function readDemoTheftFlag(): boolean {
 }
 
 function App() {
+  const [page, setPage] = useState<Page>('live')
   const [customers, setCustomers] = useState<Customer[]>(() =>
     readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : [],
   )
@@ -32,16 +36,20 @@ function App() {
   const [demoMode, setDemoMode] = useState(readDemoTheftFlag())
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
 
-  function boxColor(confidence: number): string {
-    if (confidence >= 0.85) return '#f87171'  // red — high risk
-    if (confidence >= 0.35) return '#fbbf24'  // amber — elevated
-    return '#4ade80'                          // green — low
+  function boxColor(risk: number): string {
+    if (risk >= 0.80) return '#f87171'   // red — 80-100%
+    if (risk >= 0.50) return '#fbbf24'   // yellow — 50-79%
+    return '#4ade80'                      // green — 0-49%
+  }
+
+  function riskScore(p: { class: string; confidence: number }): number {
+    return p.class === '1' ? p.confidence : 1 - p.confidence
   }
 
   function drawFrame(
     canvas: HTMLCanvasElement,
     base64: string,
-    predictions: { confidence: number; x: number; y: number; width: number; height: number }[],
+    predictions: { class: string; confidence: number; x: number; y: number; width: number; height: number }[],
   ) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -53,7 +61,8 @@ function App() {
       for (const p of predictions) {
         const x = p.x - p.width / 2
         const y = p.y - p.height / 2
-        const color = boxColor(p.confidence)
+        const risk = riskScore(p)
+        const color = boxColor(risk)
         ctx.strokeStyle = color
         ctx.lineWidth = 3
         ctx.strokeRect(x, y, p.width, p.height)
@@ -123,8 +132,8 @@ function App() {
     () => ({
       emergencyTelHref: '#', // Changed to prevent opening native phone dialer
       riskThresholds: {
-        elevated: 0.35,
-        theft: 0.85,
+        elevated: 0.50,
+        theft: 0.80,
       },
     }),
     [],
@@ -152,14 +161,35 @@ function App() {
 
   return (
     <div className="app-root">
-      <Home
-        customers={customers}
-        config={config}
-        alertLevel={alertLevel}
-        theftFeed={theftFeed}
-        canvasRef={canvasRef}
-        onEmergencyIntent={handleEmergencyIntent} // Passed to Home here!
-      />
+
+      <nav className="app-nav">
+        <button
+          className={`app-nav__btn${page === 'live' ? ' app-nav__btn--active' : ''}`}
+          onClick={() => setPage('live')}
+        >
+          Live
+        </button>
+        <button
+          className={`app-nav__btn${page === 'evidence' ? ' app-nav__btn--active' : ''}`}
+          onClick={() => setPage('evidence')}
+        >
+          Evidence
+        </button>
+      </nav>
+
+      {page === 'live' ? (
+  <Home
+  customers={customers}
+  config={config}
+  alertLevel={alertLevel}
+  theftFeed={theftFeed}
+  canvasRef={canvasRef}
+  onEmergencyIntent={handleEmergencyIntent}
+/>
+      ) : (
+        <Evidence />
+      )}
+
       {import.meta.env.DEV ? (
         <div className="app-devrail">
           <span className="app-devrail__label">Dev</span>
