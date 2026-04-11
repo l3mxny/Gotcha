@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python server.py)",
+      "Bash(curl -s http://localhost:5001/health)",
+      "Bash(xxd)",
+      "Bash(ls /Users/victoriaxiao/Gotcha/backend/*.jpg)",
+      "Bash(python3 -c ':*)",
+      "Bash(python3 server.py)",
+      "Bash(curl -s -X POST http://localhost:5001/detect -F \"frame=@test_frame.jpg\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(/Users/victoriaxiao/Gotcha/.venv311/bin/python server.py)",
+      "Bash(/Users/victoriaxiao/Gotcha/.venv311/bin/python -m json.tool)",
+      "Bash(/Users/victoriaxiao/Gotcha/.venv311/bin/python -c ':*)",
+      "Bash(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate)",
+      "Bash(ngrok version:*)",
+      "Bash(git pull:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
