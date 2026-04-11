@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5001/phone -o /dev/null -w \"%{http_code}\")",
+      "Bash(git checkout:*)",
+      "Bash(curl -s http://localhost:5001/incidents)",
+      "Bash(curl -s http://localhost:5001/evidence)",
+      "Bash(/Users/victoriaxiao/Gotcha/.venv311/bin/pip install:*)",
+      "Bash(/Users/victoriaxiao/Gotcha/.venv311/bin/pip show:*)",
+      "Bash(kill -9 41363 91109 92514)"
+    ]
+  }
+}
