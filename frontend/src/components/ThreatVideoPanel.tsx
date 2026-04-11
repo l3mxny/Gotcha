@@ -1,18 +1,18 @@
-import type { CSSProperties } from 'react'
+import { type CSSProperties, type RefObject } from 'react'
 
 export interface ThreatVideoPanelProps {
-  /** When null, shows a neutral placeholder until backend attaches a feed. */
   videoSrc: string | null
   posterSrc?: string | null
   customerLabel?: string | null
+  canvasRef: RefObject<HTMLCanvasElement | null>
   className?: string
   style?: CSSProperties
 }
 
 export function ThreatVideoPanel({
   videoSrc,
-  posterSrc,
   customerLabel,
+  canvasRef,
   className,
   style,
 }: ThreatVideoPanelProps) {
@@ -28,14 +28,9 @@ export function ThreatVideoPanel({
       }
     >
       {videoSrc ? (
-        <video
+        <canvas
+          ref={canvasRef}
           className="threat-video__media"
-          src={videoSrc}
-          poster={posterSrc ?? undefined}
-          controls
-          playsInline
-          autoPlay
-          muted
         />
       ) : (
         <div className="threat-video__placeholder">
@@ -43,7 +38,7 @@ export function ThreatVideoPanel({
             CCTV / clip feed
           </span>
           <span className="threat-video__placeholder-hint">
-            Backend will set <code>videoSrc</code>
+            Waiting for camera feed...
           </span>
         </div>
       )}

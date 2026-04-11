@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { io } from 'socket.io-client'
 import { Home } from './pages/Home'
+import { Evidence } from './pages/Evidence'
 import {
   alertLevelFromCustomers,
   type AlertLevel,
@@ -9,20 +11,14 @@ import {
 } from './types'
 import './App.css'
 
-/** Placeholder rows until the model streams real descriptors and scores. */
-const MOCK_CUSTOMERS_IDLE: Customer[] = [
-  { id: 'c1', description: 'BLUE HAT', riskScore: 0.11 },
-  { id: 'c2', description: 'YELLOW SHIRT', riskScore: 0.08 },
-  { id: 'c3', description: 'RED JACKET', riskScore: 0.14 },
-  { id: 'c4', description: 'WHITE SHOES', riskScore: 0.09 },
-  { id: 'c5', description: 'BLACK BACKPACK', riskScore: 0.12 },
-]
+type Page = 'live' | 'evidence'
 
-const MOCK_CUSTOMERS_THEFT: Customer[] = MOCK_CUSTOMERS_IDLE.map((c) =>
-  c.id === 'c2'
-    ? { ...c, riskScore: 0.93, description: 'YELLOW SHIRT' }
-    : c,
-)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5001'
+
+const MOCK_CUSTOMERS_THEFT: Customer[] = [
+  { id: 'person-1', description: 'PERSON 1', riskScore: 0.93 },
+  { id: 'person-2', description: 'PERSON 2', riskScore: 0.08 },
+]
 
 function readDemoTheftFlag(): boolean {
   if (typeof window === 'undefined') return false
@@ -30,16 +26,116 @@ function readDemoTheftFlag(): boolean {
 }
 
 function App() {
+  const [page, setPage] = useState<Page>('live')
   const [customers, setCustomers] = useState<Customer[]>(() =>
-    readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : MOCK_CUSTOMERS_IDLE,
+    readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : [],
   )
+  const [hasLiveFrame, setHasLiveFrame] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const demoModeRef = useRef(readDemoTheftFlag())
+  const socketRef = useRef<ReturnType<typeof io> | null>(null)
+
+  function boxColor(risk: number): string {
+    if (risk >= 0.80) return '#f87171'   // red — 80-100%
+    if (risk >= 0.50) return '#fbbf24'   // yellow — 50-79%
+    return '#4ade80'                      // green — 0-49%
+  }
+
+  function riskScore(p: { class: string; confidence: number }): number {
+    return p.class === '1' ? p.confidence : 1 - p.confidence
+  }
+
+  function drawFrame(
+    canvas: HTMLCanvasElement,
+    base64: string,
+    predictions: { class: string; confidence: number; x: number; y: number; width: number; height: number }[],
+  ) {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const img = new Image()
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+      for (const p of predictions) {
+        const x = p.x - p.width / 2
+        const y = p.y - p.height / 2
+        const risk = riskScore(p)
+        const color = boxColor(risk)
+        ctx.strokeStyle = color
+        ctx.lineWidth = 3
+        ctx.strokeRect(x, y, p.width, p.height)
+        ctx.fillStyle = color
+        ctx.font = 'bold 14px monospace'
+        ctx.fillText(`${(p.confidence * 100).toFixed(0)}%`, x + 4, y - 6)
+      }
+    }
+    img.src = `data:image/jpeg;base64,${base64}`
+  }
+
+  useEffect(() => {
+    const socket = io(BACKEND_URL, {
+      transports: ['polling', 'websocket'],
+      extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
+    })
+    socketRef.current = socket
+
+    socket.on('detection', (data: { predictions: { class: string; confidence: number; x: number; y: number; width: number; height: number }[]; alert: boolean; frame?: string }) => {
+      if (demoModeRef.current) return
+
+      if (data.predictions.length > 0) {
+        setCustomers(data.predictions.map((p, i) => ({
+          id: `person-${i + 1}`,
+          description: `PERSON ${i + 1}`,
+          riskScore: p.confidence,
+        })))
+      }
+
+      if (data.frame) {
+        if (canvasRef.current) {
+          drawFrame(canvasRef.current, data.frame, data.predictions)
+        }
+        if (!hasLiveFrame) setHasLiveFrame(true)
+      }
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [hasLiveFrame])
+
+  // NEW FUNCTION: Handles calling the backend to trigger the AI Call
+  const handleEmergencyIntent = async () => {
+    const worstCustomer = customers.reduce<Customer | null>(
+      (best, c) => (!best || c.riskScore > best.riskScore ? c : best),
+      null,
+    );
+
+    const description = worstCustomer?.description || "Unknown suspect";
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/trigger-alert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ description }),
+      });
+      
+      if (res.ok) {
+        console.log("Automated security call initiated!");
+      } else {
+        console.error("Failed to trigger call");
+      }
+    } catch (error) {
+      console.error("Error triggering call:", error);
+    }
+  };
 
   const config: StorefrontRuntimeConfig = useMemo(
     () => ({
-      emergencyTelHref: 'tel:911',
+      emergencyTelHref: '#', // Changed to prevent opening native phone dialer
       riskThresholds: {
-        elevated: 0.55,
-        theft: 0.85,
+        elevated: 0.50,
+        theft: 0.80,
       },
     }),
     [],
@@ -61,41 +157,45 @@ function App() {
     )
     const inTheft = alertLevel === 'theft'
     return {
-      videoSrc: inTheft ? null : null,
+      videoSrc: hasLiveFrame ? 'live' : null,
       posterSrc: null,
       customerId: inTheft && worst && worst.riskScore >= config.riskThresholds.theft
         ? worst.id
         : null,
     }
-  }, [alertLevel, customers, config.riskThresholds])
+  }, [alertLevel, customers, config.riskThresholds, hasLiveFrame])
 
   return (
     <div className="app-root">
-      <Home
-        customers={customers}
-        config={config}
-        alertLevel={alertLevel}
-        theftFeed={theftFeed}
-        voiceApiBaseUrl={voiceApiBaseUrl}
-      />
-      {import.meta.env.DEV ? (
-        <div className="app-devrail">
-          <span className="app-devrail__label">Dev</span>
-          <button
-            type="button"
-            className="app-devrail__btn"
-            onClick={() =>
-              setCustomers((prev) =>
-                prev.some((c) => c.riskScore >= config.riskThresholds.theft)
-                  ? MOCK_CUSTOMERS_IDLE
-                  : MOCK_CUSTOMERS_THEFT,
-              )
-            }
-          >
-            Toggle theft demo
-          </button>
-        </div>
-      ) : null}
+
+      <nav className="app-nav">
+        <button
+          className={`app-nav__btn${page === 'live' ? ' app-nav__btn--active' : ''}`}
+          onClick={() => setPage('live')}
+        >
+          Live
+        </button>
+        <button
+          className={`app-nav__btn${page === 'evidence' ? ' app-nav__btn--active' : ''}`}
+          onClick={() => setPage('evidence')}
+        >
+          Evidence
+        </button>
+      </nav>
+
+      {page === 'live' ? (
+  <Home
+  customers={customers}
+  config={config}
+  alertLevel={alertLevel}
+  theftFeed={theftFeed}
+  canvasRef={canvasRef}
+  onEmergencyIntent={handleEmergencyIntent}
+/>
+      ) : (
+        <Evidence />
+      )}
+
     </div>
   )
 }

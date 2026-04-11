@@ -1,37 +1,19 @@
-import logging
+from flask import Flask, request, jsonify, send_file
+from flask_socketio import SocketIO
+from flask_cors import CORS
+from detector import run_inference
+from twilio.rest import Client as TwilioClient
+from twilio.twiml.voice_response import VoiceResponse
+from collections import deque
+import time
 import os
 import tempfile
-import time
-from collections import deque
-from pathlib import Path
-from typing import Optional
+import base64
+import sqlite3
+import pathlib
 
-from dotenv import load_dotenv
-
-_BACKEND_ROOT = Path(__file__).resolve().parent
-# Load env from backend/.env regardless of current working directory.
-load_dotenv(_BACKEND_ROOT / ".env")
-
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from flask_socketio import SocketIO
-
-from call911_api import bp as call911_bp
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
-logger = logging.getLogger("gotcha.server")
-
-app = Flask(
-    __name__,
-    static_folder=str(_BACKEND_ROOT / "static"),
-    static_url_path="/static",
-)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
-app.register_blueprint(call911_bp)
-
+app = Flask(__name__)
+CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # confidence window - stores last 5 detections
@@ -39,31 +21,48 @@ recent_detections = deque(maxlen=5)
 incident_log = []
 is_processing = False
 
-_run_inference = None
-_detector_import_error: Optional[str] = None
+# rolling buffer of last 5 frames (bytes) for evidence capture
+frame_buffer = deque(maxlen=5)
+alert_active = False
 
+# evidence folder and database
+EVIDENCE_DIR = pathlib.Path(__file__).parent / 'evidence'
+EVIDENCE_DIR.mkdir(exist_ok=True)
+DB_PATH = pathlib.Path(__file__).parent / 'evidence.db'
 
-def _get_run_inference():
-    """Load Roboflow detector lazily so the API server can run without vision deps."""
-    global _run_inference, _detector_import_error
-    if _run_inference is not None:
-        return _run_inference
-    if _detector_import_error is not None:
-        raise RuntimeError(_detector_import_error)
-    try:
-        from detector import run_inference as ri
-
-        _run_inference = ri
-        return ri
-    except ImportError as e:
-        _detector_import_error = (
-            "Vision stack not installed or unsupported Python version. "
-            "Use Python 3.9–3.12 and run: pip install inference supervision opencv-python-headless. "
-            f"Import error: {e}"
+def init_db():
+    con = sqlite3.connect(DB_PATH)
+    con.execute('''
+        CREATE TABLE IF NOT EXISTS incidents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            confidence REAL,
+            folder TEXT
         )
-        logger.warning("%s", _detector_import_error)
-        raise RuntimeError(_detector_import_error) from e
+    ''')
+    con.commit()
+    con.close()
 
+init_db()
+
+def save_evidence(confidence):
+    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    folder = EVIDENCE_DIR / timestamp
+    folder.mkdir(exist_ok=True)
+
+    for i, frame_bytes in enumerate(frame_buffer):
+        with open(folder / f'frame_{i}.jpg', 'wb') as f:
+            f.write(frame_bytes)
+
+    con = sqlite3.connect(DB_PATH)
+    con.execute(
+        'INSERT INTO incidents (timestamp, confidence, folder) VALUES (?, ?, ?)',
+        (timestamp, confidence, str(folder))
+    )
+    con.commit()
+    con.close()
+
+    return timestamp
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -76,11 +75,6 @@ def detect():
     is_processing = True
 
     try:
-        try:
-            run_inference = _get_run_inference()
-        except RuntimeError as e:
-            return jsonify({"status": "error", "message": str(e)}), 503
-
         # get image from request
         file = request.files['frame']
 
@@ -88,44 +82,112 @@ def detect():
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
             file.save(tmp.name)
             predictions = run_inference(tmp.name)
+            with open(tmp.name, 'rb') as f:
+                frame_bytes = f.read()
+                frame_b64 = base64.b64encode(frame_bytes).decode('utf-8')
         os.unlink(tmp.name)
+
+        # add frame to rolling buffer
+        frame_buffer.append(frame_bytes)
 
         # check if any prediction is theft
         theft_detected = any(
-            p['class'] == '1' and p['confidence'] > 0.5
+            p['class'].lower() in ('1', 'shoplifting', 'theft', 'stealing') and p['confidence'] > 0.35
             for p in predictions
         )
 
         # add to confidence window
         recent_detections.append(1 if theft_detected else 0)
 
-        # alert if theft in 3 of last 5 frames
+        # alert if theft in 2 of last 5 frames
+        global alert_active
         alert = False
-        if sum(recent_detections) >= 3:
+        if sum(recent_detections) >= 2:
             alert = True
-            incident = {
-                "time": time.strftime("%H:%M:%S"),
-                "confidence": max((p['confidence'] for p in predictions), default=0)
-            }
-            incident_log.append(incident)
-            socketio.emit('alert', incident)
+            if not alert_active:
+                alert_active = True
+                top_confidence = max((p['confidence'] for p in predictions), default=0)
+                timestamp = save_evidence(top_confidence)
+                incident = {
+                    "time": time.strftime("%H:%M:%S"),
+                    "confidence": top_confidence,
+                    "timestamp": timestamp
+                }
+                incident_log.append(incident)
+                socketio.emit('alert', incident)
+        else:
+            alert_active = False
 
         # push result to dashboard
         socketio.emit('detection', {
             "predictions": predictions,
             "alert": alert,
-            "recent": list(recent_detections)
+            "recent": list(recent_detections),
+            "frame": frame_b64
         })
 
         return jsonify({"status": "ok", "alert": alert})
 
     except Exception as e:
-        logger.exception("Detect error")
+        print(f"Error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
     finally:
         is_processing = False
 
+@app.route('/evidence', methods=['GET'])
+def get_evidence():
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    rows = con.execute('SELECT * FROM incidents ORDER BY id DESC').fetchall()
+    con.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/evidence/<int:incident_id>/frames', methods=['GET'])
+def get_evidence_frames(incident_id):
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    row = con.execute('SELECT * FROM incidents WHERE id = ?', (incident_id,)).fetchone()
+    con.close()
+    if not row:
+        return jsonify({"error": "Incident not found"}), 404
+    folder = pathlib.Path(row['folder'])
+    frames = []
+    for i in range(5):
+        frame_path = folder / f'frame_{i}.jpg'
+        if frame_path.exists():
+            with open(frame_path, 'rb') as f:
+                frames.append(base64.b64encode(f.read()).decode('utf-8'))
+    return jsonify({"incident": dict(row), "frames": frames})
+
+@app.route('/trigger-alert', methods=['POST'])
+def trigger_alert():
+    try:
+        data = request.get_json()
+        description = data.get('description', 'Unknown suspect') if data else 'Unknown suspect'
+
+        twilio_client = TwilioClient(
+            os.getenv('TWILIO_ACCOUNT_SID'),
+            os.getenv('TWILIO_AUTH_TOKEN')
+        )
+
+        response = VoiceResponse()
+        response.say(
+            f"Security alert. Shoplifting detected. Suspect description: {description}. Please review the camera feed immediately.",
+            voice='alice'
+        )
+
+        twilio_client.calls.create(
+            twiml=str(response),
+            from_=os.getenv('TWILIO_FROM_NUMBER'),
+            to=os.getenv('MY_PHONE_NUMBER')
+        )
+
+        return jsonify({"status": "call initiated"})
+
+    except Exception as e:
+        print(f"Twilio error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/incidents', methods=['GET'])
 def get_incidents():
@@ -136,27 +198,18 @@ def get_incidents():
 def health():
     return jsonify({"status": "running"})
 
+@app.route('/phone')
+def phone():
+    return send_file('../frontend/phone.html')
 
-def _startup_env_check() -> None:
-    """Log Call 911 env health on startup so issues are visible immediately."""
-    from services.env_config import get_call911_env, twilio_env_shape_hints, validate_call911_env
-
-    miss = validate_call911_env()
-    if miss:
-        logger.warning("=== CALL 911 DISABLED — missing env: %s ===", ", ".join(miss))
-        return
-
-    cfg = get_call911_env()
-    hints = twilio_env_shape_hints(cfg)
-    if hints:
-        logger.warning("=== CALL 911 ENV ISSUES ===")
-        for h in hints:
-            logger.warning("  -> %s", h)
-    else:
-        logger.info("=== Call 911 env looks good ===")
-
+@app.route('/demo-video')
+def demo_video():
+    for name in ['demo.mp4', 'demo.mov', 'demo.MOV', 'IMG_7614.MOV']:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+        if os.path.exists(path):
+            return send_file(path)
+    return jsonify({"error": "No demo video found. Add demo.mp4 to the backend folder."}), 404
 
 if __name__ == '__main__':
     print("Starting server on http://0.0.0.0:5001")
-    _startup_env_check()
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)

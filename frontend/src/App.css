@@ -1,3 +1,37 @@
+.app-nav {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #262626;
+  flex-shrink: 0;
+}
+
+.app-nav__btn {
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.app-nav__btn:hover {
+  color: #aaa;
+}
+
+.app-nav__btn--active {
+  background: #1a1a1a;
+  border-color: #333;
+  color: #f5f5f5;
+}
+
 .app-root {
   flex: 1;
   min-height: 0;
