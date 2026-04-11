@@ -50,6 +50,10 @@ function App() {
     [customers, config.riskThresholds],
   )
 
+  const voiceApiBaseUrl =
+    import.meta.env.VITE_API_BASE_URL ??
+    (import.meta.env.DEV ? '' : 'http://127.0.0.1:5001')
+
   const theftFeed: TheftFeedPayload = useMemo(() => {
     const worst = customers.reduce<Customer | null>(
       (best, c) => (!best || c.riskScore > best.riskScore ? c : best),
@@ -72,6 +76,7 @@ function App() {
         config={config}
         alertLevel={alertLevel}
         theftFeed={theftFeed}
+        voiceApiBaseUrl={voiceApiBaseUrl}
       />
       {import.meta.env.DEV ? (
         <div className="app-devrail">

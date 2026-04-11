@@ -114,14 +114,45 @@
   border: 1px solid #7f1d1d;
   white-space: nowrap;
   transition: background 0.2s ease;
+  font: inherit;
+  cursor: pointer;
+  box-sizing: border-box;
 }
 
-.eg-call:hover {
+button.eg-call:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.eg-call:hover:not(:disabled) {
   background: var(--home-911-hover);
 }
 
 .eg-call--header {
   flex-shrink: 0;
+}
+
+.home-call {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: min(360px, 100%);
+}
+
+.home-call__status {
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--home-amber);
+}
+
+.home-call__err {
+  font-size: 0.65rem;
+  color: var(--home-red);
+  text-align: right;
+  line-height: 1.35;
 }
 
 .eg-call__icon {
