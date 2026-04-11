@@ -12,20 +12,10 @@ import './App.css'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5001'
 
-/** Placeholder rows until the model streams real descriptors and scores. */
-const MOCK_CUSTOMERS_IDLE: Customer[] = [
-  { id: 'c1', description: 'BLUE HAT', riskScore: 0.11 },
-  { id: 'c2', description: 'YELLOW SHIRT', riskScore: 0.08 },
-  { id: 'c3', description: 'RED JACKET', riskScore: 0.14 },
-  { id: 'c4', description: 'WHITE SHOES', riskScore: 0.09 },
-  { id: 'c5', description: 'BLACK BACKPACK', riskScore: 0.12 },
+const MOCK_CUSTOMERS_THEFT: Customer[] = [
+  { id: 'person-1', description: 'PERSON 1', riskScore: 0.93 },
+  { id: 'person-2', description: 'PERSON 2', riskScore: 0.08 },
 ]
-
-const MOCK_CUSTOMERS_THEFT: Customer[] = MOCK_CUSTOMERS_IDLE.map((c) =>
-  c.id === 'c2'
-    ? { ...c, riskScore: 0.93, description: 'YELLOW SHIRT' }
-    : c,
-)
 
 function readDemoTheftFlag(): boolean {
   if (typeof window === 'undefined') return false
@@ -34,7 +24,7 @@ function readDemoTheftFlag(): boolean {
 
 function App() {
   const [customers, setCustomers] = useState<Customer[]>(() =>
-    readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : MOCK_CUSTOMERS_IDLE,
+    readDemoTheftFlag() ? MOCK_CUSTOMERS_THEFT : [],
   )
   const [hasLiveFrame, setHasLiveFrame] = useState(false)
   const frameImgRef = useRef<HTMLImageElement | null>(null)
@@ -49,22 +39,13 @@ function App() {
     socket.on('detection', (data: { predictions: { class: string; confidence: number }[]; alert: boolean; frame?: string }) => {
       if (demoModeRef.current) return
 
-      const topPred = data.predictions.reduce<{ class: string; confidence: number } | null>(
-        (best, p) => (!best || p.confidence > best.confidence ? p : best),
-        null,
-      )
-      if (topPred) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === 'c2' ? { ...c, riskScore: topPred.confidence } : c,
-          ),
-        )
-      } else {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === 'c2' ? { ...c, riskScore: Math.max(0.08, c.riskScore * 0.7) } : c,
-          ),
-        )
+      if (data.predictions.length > 0) {
+        console.log('predictions:', data.predictions)
+        setCustomers(data.predictions.map((p, i) => ({
+          id: `person-${i + 1}`,
+          description: `PERSON ${i + 1}`,
+          riskScore: p.confidence,
+        })))
       }
 
       // update img DOM directly — no React state, no re-render lag
@@ -131,7 +112,7 @@ function App() {
               const nextDemo = !demoModeRef.current
               demoModeRef.current = nextDemo
               setDemoMode(nextDemo)
-              setCustomers(nextDemo ? MOCK_CUSTOMERS_THEFT : MOCK_CUSTOMERS_IDLE)
+              setCustomers(nextDemo ? MOCK_CUSTOMERS_THEFT : [])
             }}
           >
             {demoMode ? 'Exit demo' : 'Toggle theft demo'}
