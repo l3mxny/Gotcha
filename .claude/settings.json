@@ -10,7 +10,8 @@
       "Bash(kill -9 41363 91109 92514)",
       "Bash(ls /Users/victoriaxiao/Gotcha/frontend/.env*)",
       "Bash(sqlite3 /Users/victoriaxiao/Gotcha/backend/evidence.db \"SELECT * FROM incidents ORDER BY id DESC LIMIT 5;\")",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(git merge:*)"
     ]
   }
 }

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { io } from 'socket.io-client'
+import { useEffect, useState } from 'react'
 import { EmergencyCallButton } from '../components/EmergencyCallButton'
 import './Evidence.css'
 

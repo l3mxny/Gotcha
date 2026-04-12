@@ -23,7 +23,7 @@ export async function connectOutboundVoiceCall(options: {
     sharedDevice = new Device(token, {
       logLevel: 'error',
     })
-    sharedDevice.on('error', (err) => {
+    sharedDevice.on('error', (err: unknown) => {
       console.error('[Twilio Device]', err)
     })
     await sharedDevice.register()

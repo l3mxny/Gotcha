@@ -146,10 +146,6 @@ function App() {
     [customers, config.riskThresholds],
   )
 
-  const voiceApiBaseUrl =
-    import.meta.env.VITE_BACKEND_URL ??
-    (import.meta.env.DEV ? '' : 'http://127.0.0.1:5001')
-
   const theftFeed: TheftFeedPayload = useMemo(() => {
     const worst = customers.reduce<Customer | null>(
       (best, c) => (!best || c.riskScore > best.riskScore ? c : best),
