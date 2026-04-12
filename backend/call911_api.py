@@ -294,4 +294,12 @@ def twilio_callee_answer():
 
     logger.info("callee-answer playing url for session=%s", call_session_id)
     vr.play(sess.audio_url)
+
+    mp3_path = _AUDIO_DIR / f"{call_session_id}.mp3"
+    try:
+        mp3_path.unlink(missing_ok=True)
+        logger.info("Deleted audio file for session=%s", call_session_id)
+    except Exception:
+        logger.exception("Failed to delete audio file for session=%s", call_session_id)
+
     return str(vr), 200, {"Content-Type": "text/xml"}

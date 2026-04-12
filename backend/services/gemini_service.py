@@ -8,7 +8,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MESSAGE_PATH = Path(__file__).resolve().parent.parent / "data" / "emergency_message_default.txt"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_DEFAULT_MESSAGE_PATH = _DATA_DIR / "emergency_message_default.txt"
+_LAST_MESSAGE_PATH = _DATA_DIR / "emergency_message.txt"
+
+
+def _save_last_message(text: str) -> None:
+    try:
+        _LAST_MESSAGE_PATH.write_text(text, encoding="utf-8")
+    except Exception:
+        logger.exception("Failed to write last emergency message to %s.", _LAST_MESSAGE_PATH)
 
 
 def _read_default_file() -> str:
@@ -33,7 +42,9 @@ def generate_emergency_message(
     """
     if not gemini_api_key:
         logger.info("GEMINI_API_KEY not set; using default emergency message file/text.")
-        return _read_default_file()
+        text = _read_default_file()
+        _save_last_message(text)
+        return text
 
     try:
         import google.generativeai as genai  # type: ignore import-not-found
@@ -53,9 +64,14 @@ def generate_emergency_message(
         text = (resp.text or "").strip()
         if not text:
             logger.warning("Gemini returned empty text; falling back to default file.")
-            return _read_default_file()
+            text = _read_default_file()
+            _save_last_message(text)
+            return text
         logger.info("Gemini generated emergency message (%d chars).", len(text))
+        _save_last_message(text)
         return text
     except Exception:
         logger.exception("Gemini generation failed; falling back to default file.")
-        return _read_default_file()
+        text = _read_default_file()
+        _save_last_message(text)
+        return text
