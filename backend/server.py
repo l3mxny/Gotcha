@@ -9,6 +9,7 @@ from call911_api import bp as call911_bp
 from services.gemini_service import analyze_evidence_and_generate_message
 import time
 import os
+import uuid
 import tempfile
 import base64
 import sqlite3
@@ -66,6 +67,14 @@ def save_evidence(confidence):
     con.close()
 
     return folder
+
+@app.route('/static/generated_audio/<path:filename>')
+def serve_generated_audio(filename):
+    resp = send_file(os.path.join(app.static_folder, 'generated_audio', filename))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -206,7 +215,6 @@ def trigger_alert():
         # Use ElevenLabs TTS if configured, otherwise fall back to alice
         if elevenlabs_api_key and elevenlabs_voice_id:
             from services.elevenlabs_service import synthesize_mp3
-            import uuid
             print(f"ElevenLabs will speak: {message[:100]}")
             mp3_bytes = synthesize_mp3(api_key=elevenlabs_api_key, voice_id=elevenlabs_voice_id, text=message)
             filename = f"{uuid.uuid4().hex}.mp3"
@@ -216,7 +224,7 @@ def trigger_alert():
             public_url = os.getenv('PUBLIC_BASE_URL', '').rstrip('/')
             audio_url = f"{public_url}/static/generated_audio/{filename}"
             response = VoiceResponse()
-            response.play(audio_url)
+            response.play(f"{audio_url}?nocache={uuid.uuid4().hex}")
         else:
             response = VoiceResponse()
             response.say(message, voice='alice')

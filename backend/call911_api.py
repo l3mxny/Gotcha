@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -293,13 +295,17 @@ def twilio_callee_answer():
         return str(vr), 200, {"Content-Type": "text/xml"}
 
     logger.info("callee-answer playing url for session=%s", call_session_id)
-    vr.play(sess.audio_url)
+    vr.play(f"{sess.audio_url}?nocache={uuid.uuid4().hex}")
 
-    mp3_path = _AUDIO_DIR / f"{call_session_id}.mp3"
-    try:
-        mp3_path.unlink(missing_ok=True)
-        logger.info("Deleted audio file for session=%s", call_session_id)
-    except Exception:
-        logger.exception("Failed to delete audio file for session=%s", call_session_id)
+    def _deferred_delete(sid=call_session_id):
+        time.sleep(120)
+        mp3_path = _AUDIO_DIR / f"{sid}.mp3"
+        try:
+            mp3_path.unlink(missing_ok=True)
+            logger.info("Deferred-deleted audio file for session=%s", sid)
+        except Exception:
+            logger.exception("Failed to delete audio file for session=%s", sid)
+
+    threading.Thread(target=_deferred_delete, daemon=True).start()
 
     return str(vr), 200, {"Content-Type": "text/xml"}
