@@ -4,11 +4,21 @@ import os
 
 load_dotenv()
 
-rf = Roboflow(api_key=os.getenv("ROBOFLOW_API_KEY"))
-project = rf.workspace().project("shoplifting-xwimk")
-model = project.version(1).model
+_model = None
+
+def _get_model():
+    global _model
+    if _model is None:
+        api_key = os.getenv("ROBOFLOW_API_KEY")
+        if not api_key:
+            raise RuntimeError("ROBOFLOW_API_KEY is not set. Add it to backend/.env")
+        rf = Roboflow(api_key=api_key)
+        project = rf.workspace().project("shoplifting-xwimk")
+        _model = project.version(1).model
+    return _model
 
 def run_inference(image_path):
+    model = _get_model()
     result = model.predict(image_path, confidence=20, overlap=30).json()
     predictions = result["predictions"]
 
