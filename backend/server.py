@@ -165,9 +165,8 @@ def get_evidence_frames(incident_id):
 @app.route('/trigger-alert', methods=['POST'])
 def trigger_alert():
     try:
-        data = request.get_json()
-        description = data.get('description', 'Unknown suspect') if data else 'Unknown suspect'
-        message = f"Security alert. Shoplifting detected. Suspect description: {description}. Please review the camera feed immediately."
+        msg_path = pathlib.Path(__file__).parent / 'data' / 'emergency_message_default.txt'
+        message = msg_path.read_text(encoding='utf-8').strip() if msg_path.is_file() else "Security alert. Shoplifting detected."
 
         elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
         elevenlabs_voice_id = os.getenv('ELEVENLABS_VOICE_ID')
@@ -186,7 +185,7 @@ def trigger_alert():
             audio_path = pathlib.Path(__file__).parent / 'static' / 'generated_audio' / filename
             audio_path.parent.mkdir(parents=True, exist_ok=True)
             audio_path.write_bytes(mp3_bytes)
-            public_url = os.getenv('PUBLIC_SERVER_URL', '').rstrip('/')
+            public_url = os.getenv('PUBLIC_BASE_URL', '').rstrip('/')
             audio_url = f"{public_url}/static/generated_audio/{filename}"
             response = VoiceResponse()
             response.play(audio_url)
@@ -196,9 +195,20 @@ def trigger_alert():
 
         twilio_client.calls.create(
             twiml=str(response),
-            from_=os.getenv('TWILIO_FROM_NUMBER'),
-            to=os.getenv('MY_PHONE_NUMBER')
+            from_=os.getenv('TWILIO_CALLER_ID'),
+            to=os.getenv('FRIEND_PHONE_NUMBER')
         )
+
+        if elevenlabs_api_key and elevenlabs_voice_id:
+            import threading
+            def _cleanup(path=audio_path):
+                import time
+                time.sleep(60)
+                try:
+                    path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            threading.Thread(target=_cleanup, daemon=True).start()
 
         return jsonify({"status": "call initiated"})
 
