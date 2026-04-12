@@ -40,8 +40,8 @@ export function Evidence() {
   }
 
   function confidenceColor(c: number) {
-    if (c >= 0.85) return '#f87171'
-    if (c >= 0.35) return '#fbbf24'
+    if (c >= 0.75) return '#f87171'
+    if (c >= 0.50) return '#fbbf24'
     return '#4ade80'
   }
 

@@ -36,8 +36,8 @@ function App() {
   const socketRef = useRef<ReturnType<typeof io> | null>(null)
 
   function boxColor(risk: number): string {
-    if (risk >= 0.80) return '#f87171'   // red — 80-100%
-    if (risk >= 0.50) return '#fbbf24'   // yellow — 50-79%
+    if (risk >= 0.75) return '#f87171'   // red — 75-100%
+    if (risk >= 0.50) return '#fbbf24'   // yellow — 50-74%
     return '#4ade80'                      // green — 0-49%
   }
 
@@ -67,7 +67,7 @@ function App() {
         ctx.strokeRect(x, y, p.width, p.height)
         ctx.fillStyle = color
         ctx.font = 'bold 14px monospace'
-        ctx.fillText(`${(p.confidence * 100).toFixed(0)}%`, x + 4, y - 6)
+        ctx.fillText(`${(risk * 100).toFixed(0)}%`, x + 4, y - 6)
       }
     }
     img.src = `data:image/jpeg;base64,${base64}`
@@ -87,7 +87,7 @@ function App() {
         setCustomers(data.predictions.map((p, i) => ({
           id: `person-${i + 1}`,
           description: `PERSON ${i + 1}`,
-          riskScore: p.confidence,
+          riskScore: riskScore(p),
         })))
       }
 
@@ -135,7 +135,7 @@ function App() {
       emergencyTelHref: '#', // Changed to prevent opening native phone dialer
       riskThresholds: {
         elevated: 0.50,
-        theft: 0.80,
+        theft: 0.75,
       },
     }),
     [],
