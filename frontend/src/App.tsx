@@ -193,7 +193,7 @@ function App() {
   onEmergencyIntent={handleEmergencyIntent}
 />
       ) : (
-        <Evidence />
+        <Evidence onEmergencyIntent={handleEmergencyIntent} />
       )}
 
     </div>
