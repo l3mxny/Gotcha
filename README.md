@@ -1,4 +1,4 @@
-# Gotcha — AI Shoplifting Detection System
+# Gotcha 
 
 > **Empowering cameras to intervene intelligently, not just record.**
 
