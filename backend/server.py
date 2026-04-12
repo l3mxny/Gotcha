@@ -93,8 +93,11 @@ def detect():
         frame_buffer.append(frame_bytes)
 
         # check if any prediction is theft
+        def risk_score(p):
+            return p['confidence'] if p['class'] == '1' else 1 - p['confidence']
+
         theft_detected = any(
-            p['class'].lower() in ('1', 'shoplifting', 'theft', 'stealing') and p['confidence'] > 0.35
+            risk_score(p) > 0.70
             for p in predictions
         )
 
