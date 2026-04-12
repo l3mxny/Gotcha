@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+_AUDIO_DIR = Path(__file__).resolve().parent / "static" / "generated_audio"
 
 
 @dataclass
@@ -35,3 +41,8 @@ def _purge_locked(now: float) -> None:
     dead = [k for k, v in _sessions.items() if now - v.created_at > _TTL_SEC]
     for k in dead:
         del _sessions[k]
+        mp3_path = _AUDIO_DIR / f"{k}.mp3"
+        try:
+            mp3_path.unlink(missing_ok=True)
+        except Exception:
+            logger.exception("Failed to delete expired audio file %s", mp3_path)
