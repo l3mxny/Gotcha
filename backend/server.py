@@ -148,6 +148,22 @@ def get_evidence():
     con.close()
     return jsonify([dict(r) for r in rows])
 
+@app.route('/evidence/<int:incident_id>', methods=['DELETE'])
+def delete_evidence(incident_id):
+    import shutil
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    row = con.execute('SELECT * FROM incidents WHERE id = ?', (incident_id,)).fetchone()
+    if not row:
+        con.close()
+        return jsonify({"error": "Not found"}), 404
+    folder = pathlib.Path(row['folder'])
+    con.execute('DELETE FROM incidents WHERE id = ?', (incident_id,))
+    con.commit()
+    con.close()
+    shutil.rmtree(folder, ignore_errors=True)
+    return jsonify({"status": "deleted"})
+
 @app.route('/evidence/<int:incident_id>/frames', methods=['GET'])
 def get_evidence_frames(incident_id):
     con = sqlite3.connect(DB_PATH)

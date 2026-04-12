@@ -17,41 +17,116 @@
   flex-shrink: 0;
 }
 
+.evidence-header__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .evidence-title {
   margin: 0;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f87171;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
 }
 
 .evidence-count {
   font-size: 0.7rem;
-  color: #666;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .evidence-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 360px 1fr;
   overflow: hidden;
 }
 
 .evidence-list {
   border-right: 1px solid #262626;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.evidence-list__items {
+  flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: #111;
-  padding: 8px;
+  min-height: 0;
+}
+
+.evidence-list__items .evidence-item {
+  flex: 1;
+}
+
+.evidence-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 4px;
+  flex-shrink: 0;
+  border-top: 1px solid #262626;
+  margin-top: 4px;
+}
+
+.evidence-pager__btn {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: #e5e5e5;
+  font-size: 1.1rem;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.evidence-pager__btn:hover:not(:disabled) {
+  background: #3a3a3a;
+  border-color: #666;
+  color: #fff;
+}
+
+.evidence-pager__btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.evidence-pager__info {
+  font-size: 1rem;
+  color: #aaa;
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
 }
 
 .evidence-empty {
   color: #555;
-  font-size: 0.75rem;
+  font-size: 1rem;
   text-align: center;
   padding: 24px 16px;
 }
@@ -60,7 +135,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 14px 16px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -68,6 +143,7 @@
   text-align: left;
   gap: 8px;
   transition: background 0.15s;
+  user-select: none;
 }
 
 .evidence-item:hover {
@@ -80,44 +156,96 @@
 }
 
 .evidence-item__time {
-  font-size: 0.7rem;
+  font-size: 1rem;
   color: #aaa;
   font-family: ui-monospace, monospace;
 }
 
 .evidence-item__conf {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
   font-family: ui-monospace, monospace;
+}
+
+.evidence-item__delete {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.evidence-item__delete:hover {
+  color: #f87171;
 }
 
 .evidence-frames {
   padding: 20px;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .evidence-frames__label {
-  font-size: 0.75rem;
+  font-size: 1rem;
   color: #aaa;
   margin: 0;
   font-family: ui-monospace, monospace;
+  flex-shrink: 0;
 }
 
 .evidence-filmstrip {
-  display: flex;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .evidence-frame {
-  width: calc(20% - 7px);
-  min-width: 100px;
-  aspect-ratio: 1;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #262626;
   background: #111;
+  cursor: zoom-in;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.evidence-frame:first-child {
+  grid-row: 1 / -1;
+}
+
+.evidence-frame:hover {
+  border-color: #555;
+  transform: scale(1.005);
+}
+
+.evidence-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  cursor: zoom-out;
+}
+
+.evidence-lightbox__img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
 }
