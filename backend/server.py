@@ -6,6 +6,7 @@ from twilio.rest import Client as TwilioClient
 from twilio.twiml.voice_response import VoiceResponse
 from collections import deque
 from call911_api import bp as call911_bp
+from services.gemini_service import analyze_evidence_and_generate_message
 import time
 import os
 import tempfile
@@ -64,7 +65,7 @@ def save_evidence(confidence):
     con.commit()
     con.close()
 
-    return timestamp
+    return folder
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -112,11 +113,18 @@ def detect():
             if not alert_active:
                 alert_active = True
                 top_confidence = max((p['confidence'] for p in predictions), default=0)
-                timestamp = save_evidence(top_confidence)
+                folder = save_evidence(top_confidence)
+
+                suspect_description = analyze_evidence_and_generate_message(
+                    folder_path=folder,
+                    gemini_api_key=os.getenv('GEMINI_API_KEY'),
+                )
+
                 incident = {
                     "time": time.strftime("%H:%M:%S"),
                     "confidence": top_confidence,
-                    "timestamp": timestamp
+                    "timestamp": folder.name,
+                    "description": suspect_description,
                 }
                 incident_log.append(incident)
                 socketio.emit('alert', incident)
@@ -184,7 +192,7 @@ def get_evidence_frames(incident_id):
 @app.route('/trigger-alert', methods=['POST'])
 def trigger_alert():
     try:
-        msg_path = pathlib.Path(__file__).parent / 'data' / 'emergency_message_default.txt'
+        msg_path = pathlib.Path(__file__).parent / 'data' / 'emergency_message.txt'
         message = msg_path.read_text(encoding='utf-8').strip() if msg_path.is_file() else "Security alert. Shoplifting detected."
 
         elevenlabs_api_key = os.getenv('ELEVENLABS_API_KEY')
@@ -199,6 +207,7 @@ def trigger_alert():
         if elevenlabs_api_key and elevenlabs_voice_id:
             from services.elevenlabs_service import synthesize_mp3
             import uuid
+            print(f"ElevenLabs will speak: {message[:100]}")
             mp3_bytes = synthesize_mp3(api_key=elevenlabs_api_key, voice_id=elevenlabs_voice_id, text=message)
             filename = f"{uuid.uuid4().hex}.mp3"
             audio_path = pathlib.Path(__file__).parent / 'static' / 'generated_audio' / filename

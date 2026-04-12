@@ -3,26 +3,19 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
+
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-_DEFAULT_MESSAGE_PATH = _DATA_DIR / "emergency_message_default.txt"
-_LAST_MESSAGE_PATH = _DATA_DIR / "emergency_message.txt"
+_MESSAGE_PATH = _DATA_DIR / "emergency_message.txt"
 
 
-def _save_last_message(text: str) -> None:
-    try:
-        _LAST_MESSAGE_PATH.write_text(text, encoding="utf-8")
-    except Exception:
-        logger.exception("Failed to write last emergency message to %s.", _LAST_MESSAGE_PATH)
-
-
-def _read_default_file() -> str:
-    if _DEFAULT_MESSAGE_PATH.is_file():
-        text = _DEFAULT_MESSAGE_PATH.read_text(encoding="utf-8").strip()
+def _read_message_file() -> str:
+    if _MESSAGE_PATH.is_file():
+        text = _MESSAGE_PATH.read_text(encoding="utf-8").strip()
         if text:
             return text
     return (
@@ -37,41 +30,72 @@ def generate_emergency_message(
     theft_context: str | None = None,
 ) -> str:
     """
-    Produce the script that will be converted to speech.
-    Uses Gemini when GEMINI_API_KEY is configured; otherwise a local default file.
+    Return the current emergency message from emergency_message.txt.
+    That file is kept up-to-date by analyze_evidence_and_generate_message().
+    """
+    return _read_message_file()
+
+
+def analyze_evidence_and_generate_message(
+    *,
+    folder_path: Path,
+    gemini_api_key: str | None,
+) -> str | None:
+    """
+    Send up to 5 evidence frames to Gemini 2.0 Flash for multi-modal analysis.
+    Generates a personalized ~10-second emergency phone message with suspect
+    descriptors and overwrites emergency_message.txt on success.
+    Returns the message string, or None on failure (leaving the old file intact).
     """
     if not gemini_api_key:
-        logger.info("GEMINI_API_KEY not set; using default emergency message file/text.")
-        text = _read_default_file()
-        _save_last_message(text)
-        return text
+        logger.warning("GEMINI_API_KEY not set; skipping evidence analysis.")
+        return None
 
     try:
-        import google.generativeai as genai  # type: ignore import-not-found
+        from google import genai
 
-        genai.configure(api_key=gemini_api_key)
-        model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        model = genai.GenerativeModel(model_name)
-        ctx = theft_context or "A shoplifting alert was triggered at the storefront."
+        client = genai.Client(api_key=gemini_api_key)
+
+        images: list[Image.Image] = []
+        for i in range(5):
+            frame_path = folder_path / f"frame_{i}.jpg"
+            if frame_path.exists():
+                images.append(Image.open(frame_path))
+
+        if not images:
+            logger.warning("No evidence frames found in %s; skipping analysis.", folder_path)
+            return None
+
         prompt = (
-            "Write a concise 20–35 second spoken emergency-style message for a phone call. "
-            "No greeting to a named person; start directly. "
-            "Plain language, no stage directions, no bullet points. "
-            "Context from the system: "
-            + ctx
+            "You are a store security AI. Analyze these sequential frames of a "
+            "potential shoplifting incident. Identify the suspect and note unique "
+            "physical identifiers: gender, estimated build, hair color/style, and "
+            "specific clothing details (color, brand, logos, accessories). "
+            "Then compose a concise, urgent ~10-second spoken emergency message "
+            "for a phone call to authorities that includes these identifiers. "
+            "Start directly — no greeting to a named person. "
+            "Plain language only, no stage directions, no bullet points. "
+            "Output ONLY the final spoken message, nothing else."
         )
-        resp = model.generate_content(prompt)
+
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt, *images],
+        )
         text = (resp.text or "").strip()
+
         if not text:
-            logger.warning("Gemini returned empty text; falling back to default file.")
-            text = _read_default_file()
-            _save_last_message(text)
-            return text
-        logger.info("Gemini generated emergency message (%d chars).", len(text))
-        _save_last_message(text)
+            logger.warning("Gemini returned empty analysis; keeping existing message file.")
+            return None
+
+        _MESSAGE_PATH.write_text(text, encoding="utf-8")
+        logger.info(
+            "Gemini evidence analysis complete (%d chars): %s",
+            len(text),
+            text[:120],
+        )
         return text
+
     except Exception:
-        logger.exception("Gemini generation failed; falling back to default file.")
-        text = _read_default_file()
-        _save_last_message(text)
-        return text
+        logger.exception("Gemini evidence analysis failed; keeping existing message file.")
+        return None
