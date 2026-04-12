@@ -58,7 +58,7 @@ function attachCallListeners(
     setErrorMessage('Call was rejected or could not complete.')
     done()
   })
-  call.on('error', (twilioErr) => {
+  call.on('error', (twilioErr: unknown) => {
     setPhase('error')
     const msg =
       twilioErr && typeof twilioErr === 'object' && 'message' in twilioErr
