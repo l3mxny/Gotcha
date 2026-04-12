@@ -107,7 +107,7 @@ def detect():
             return p['confidence'] if p['class'] == '1' else 1 - p['confidence']
 
         theft_detected = any(
-            risk_score(p) > 0.70
+            risk_score(p) > 0.50
             for p in predictions
         )
 
@@ -121,14 +121,13 @@ def detect():
             alert = True
             if not alert_active:
                 alert_active = True
-                top_confidence = max((p['confidence'] for p in predictions), default=0)
+                top_confidence = max((risk_score(p) for p in predictions), default=0)
                 folder = save_evidence(top_confidence)
 
                 suspect_description = analyze_evidence_and_generate_message(
                     folder_path=folder,
                     gemini_api_key=os.getenv('GEMINI_API_KEY'),
                 )
-
                 incident = {
                     "time": time.strftime("%H:%M:%S"),
                     "confidence": top_confidence,
@@ -221,7 +220,7 @@ def trigger_alert():
             audio_path = pathlib.Path(__file__).parent / 'static' / 'generated_audio' / filename
             audio_path.parent.mkdir(parents=True, exist_ok=True)
             audio_path.write_bytes(mp3_bytes)
-            public_url = os.getenv('PUBLIC_BASE_URL', '').rstrip('/')
+            public_url = (os.getenv('PUBLIC_BASE_URL') or os.getenv('PUBLIC_SERVER_URL', '')).rstrip('/')
             audio_url = f"{public_url}/static/generated_audio/{filename}"
             response = VoiceResponse()
             response.play(f"{audio_url}?nocache={uuid.uuid4().hex}")
@@ -239,7 +238,7 @@ def trigger_alert():
             import threading
             def _cleanup(path=audio_path):
                 import time
-                time.sleep(60)
+                time.sleep(300)
                 try:
                     path.unlink(missing_ok=True)
                 except Exception:
