@@ -4,5 +4,5 @@
 __pycache__
 *.pyc
 backend/static/generated_audio/*.mp3
-*.pycbackend/evidence/
+backend/evidence/
 backend/evidence.db
