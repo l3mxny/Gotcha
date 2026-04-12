@@ -98,39 +98,6 @@
   transform: none;
 }
 
-/* Emergency call */
-.eg-call {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-decoration: none;
-  color: #fff;
-  background: var(--home-911);
-  border: 1px solid #7f1d1d;
-  white-space: nowrap;
-  transition: background 0.2s ease;
-  font: inherit;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-
-button.eg-call:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.eg-call:hover:not(:disabled) {
-  background: var(--home-911-hover);
-}
-
-.eg-call--header {
-  flex-shrink: 0;
-}
 
 .home-call {
   display: flex;
@@ -155,9 +122,6 @@ button.eg-call:disabled {
   line-height: 1.35;
 }
 
-.eg-call__icon {
-  display: flex;
-}
 
 /* Watchlist */
 .customer-watchlist {
