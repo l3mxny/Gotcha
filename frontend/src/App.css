@@ -1,7 +1,7 @@
 .app-nav {
   display: flex;
-  gap: 2px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 10px 16px;
   background: #0a0a0a;
   border-bottom: 1px solid #262626;
   flex-shrink: 0;
@@ -9,11 +9,11 @@
 
 .app-nav__btn {
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 6px 14px;
+  padding: 10px 22px;
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
@@ -75,4 +75,42 @@
 
 .app-devrail__btn:hover {
   border-color: #666;
+}
+
+/* Emergency call button — shared across pages */
+.eg-call {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  color: #fff;
+  background: #b91c1c;
+  border: 1px solid #7f1d1d;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+  font: inherit;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+button.eg-call:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.eg-call:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.eg-call--header {
+  flex-shrink: 0;
+}
+
+.eg-call__icon {
+  display: flex;
 }
