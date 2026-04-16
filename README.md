@@ -1,5 +1,7 @@
 # Gotcha 
 
+devpost: https://devpost.com/software/project-sj6wdhy2a1mr
+
 > **Empowering cameras to intervene intelligently, not just record.**
 
 Small businesses and independent vendors are frequently left vulnerable to theft because they lack the budget and space for traditional, industrial-scale CCTV systems. We built Gotcha to bridge the gap between those expensive security networks and having no protection at all — providing every business owner with an accessible, affordable tool to secure their livelihood.
