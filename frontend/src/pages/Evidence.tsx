@@ -144,9 +144,9 @@ export function Evidence({ onEmergencyIntent }: EvidenceProps) {
                   <img
                     key={i}
                     className="evidence-frame"
-                    src={`data:image/jpeg;base64,${f}`}
+                    src={f}
                     alt={`Frame ${i + 1}`}
-                    onClick={() => setLightbox(`data:image/jpeg;base64,${f}`)}
+                    onClick={() => setLightbox(f)}
                   />
                 ))}
               </div>
