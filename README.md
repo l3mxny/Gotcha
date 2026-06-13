@@ -8,6 +8,11 @@ Small businesses and independent vendors are frequently left vulnerable to theft
 
 ---
 
+## Update Logs
+6/13/26: Added AWS S3 integration for evidence storage
+
+
+
 ## Architecture
 
 ```
