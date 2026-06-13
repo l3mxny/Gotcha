@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 
@@ -38,7 +39,7 @@ def generate_emergency_message(
 
 def analyze_evidence_and_generate_message(
     *,
-    folder_path: Path,
+    frames: list[bytes],
     gemini_api_key: str | None,
 ) -> str | None:
     """
@@ -56,14 +57,10 @@ def analyze_evidence_and_generate_message(
 
         client = genai.Client(api_key=gemini_api_key)
 
-        images: list[Image.Image] = []
-        for i in range(5):
-            frame_path = folder_path / f"frame_{i}.jpg"
-            if frame_path.exists():
-                images.append(Image.open(frame_path))
+        images: list[Image.Image] = [Image.open(io.BytesIO(frame_bytes)) for frame_bytes in frames]
 
         if not images:
-            logger.warning("No evidence frames found in %s; skipping analysis.", folder_path)
+            logger.warning("No evidence frames provided; skipping analysis.")
             return None
 
         prompt = (

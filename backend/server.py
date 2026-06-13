@@ -7,11 +7,14 @@ from twilio.twiml.voice_response import VoiceResponse
 from collections import deque
 from call911_api import bp as call911_bp
 from services.gemini_service import analyze_evidence_and_generate_message
+from services.env_config import get_aws_env
+from services.s3_service import upload_evidence_frame, delete_evidence_prefix
 import time
 import os
 import uuid
 import tempfile
 import base64
+import json
 import sqlite3
 import pathlib
 
@@ -29,9 +32,7 @@ is_processing = False
 frame_buffer = deque(maxlen=5)
 alert_active = False
 
-# evidence folder and database
-EVIDENCE_DIR = pathlib.Path(__file__).parent / 'evidence'
-EVIDENCE_DIR.mkdir(exist_ok=True)
+# evidence database
 DB_PATH = pathlib.Path(__file__).parent / 'evidence.db'
 
 def init_db():
@@ -41,32 +42,44 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT,
             confidence REAL,
-            folder TEXT
+            folder TEXT,
+            frame_urls TEXT
         )
     ''')
+    try:
+        con.execute('ALTER TABLE incidents ADD COLUMN frame_urls TEXT')
+    except sqlite3.OperationalError:
+        pass
     con.commit()
     con.close()
 
 init_db()
 
-def save_evidence(confidence):
-    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-    folder = EVIDENCE_DIR / timestamp
-    folder.mkdir(exist_ok=True)
+def save_evidence(confidence, timestamp):
+    prefix = f'evidence/{timestamp}'
 
+    aws = get_aws_env()
+    frame_urls = []
     for i, frame_bytes in enumerate(frame_buffer):
-        with open(folder / f'frame_{i}.jpg', 'wb') as f:
-            f.write(frame_bytes)
+        url = upload_evidence_frame(
+            key=f'{prefix}/frame_{i}.jpg',
+            data=frame_bytes,
+            aws_access_key_id=aws.aws_access_key_id,
+            aws_secret_access_key=aws.aws_secret_access_key,
+            aws_region=aws.aws_region,
+            aws_bucket_name=aws.aws_bucket_name,
+        )
+        frame_urls.append(url)
 
     con = sqlite3.connect(DB_PATH)
     con.execute(
-        'INSERT INTO incidents (timestamp, confidence, folder) VALUES (?, ?, ?)',
-        (timestamp, confidence, str(folder))
+        'INSERT INTO incidents (timestamp, confidence, folder, frame_urls) VALUES (?, ?, ?, ?)',
+        (timestamp, confidence, prefix, json.dumps(frame_urls))
     )
     con.commit()
     con.close()
 
-    return folder
+    return frame_urls
 
 @app.route('/static/generated_audio/<path:filename>')
 def serve_generated_audio(filename):
@@ -122,16 +135,17 @@ def detect():
             if not alert_active:
                 alert_active = True
                 top_confidence = max((risk_score(p) for p in predictions), default=0)
-                folder = save_evidence(top_confidence)
+                timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+                save_evidence(top_confidence, timestamp)
 
                 suspect_description = analyze_evidence_and_generate_message(
-                    folder_path=folder,
+                    frames=list(frame_buffer),
                     gemini_api_key=os.getenv('GEMINI_API_KEY'),
                 )
                 incident = {
                     "time": time.strftime("%H:%M:%S"),
                     "confidence": top_confidence,
-                    "timestamp": folder.name,
+                    "timestamp": timestamp,
                     "description": suspect_description,
                 }
                 incident_log.append(incident)
@@ -162,22 +176,33 @@ def get_evidence():
     con.row_factory = sqlite3.Row
     rows = con.execute('SELECT * FROM incidents ORDER BY id DESC').fetchall()
     con.close()
-    return jsonify([dict(r) for r in rows])
+    incidents = []
+    for r in rows:
+        d = dict(r)
+        d['frame_urls'] = json.loads(d['frame_urls']) if d.get('frame_urls') else []
+        incidents.append(d)
+    return jsonify(incidents)
 
 @app.route('/evidence/<int:incident_id>', methods=['DELETE'])
 def delete_evidence(incident_id):
-    import shutil
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     row = con.execute('SELECT * FROM incidents WHERE id = ?', (incident_id,)).fetchone()
     if not row:
         con.close()
         return jsonify({"error": "Not found"}), 404
-    folder = pathlib.Path(row['folder'])
     con.execute('DELETE FROM incidents WHERE id = ?', (incident_id,))
     con.commit()
     con.close()
-    shutil.rmtree(folder, ignore_errors=True)
+
+    aws = get_aws_env()
+    delete_evidence_prefix(
+        prefix=row['folder'],
+        aws_access_key_id=aws.aws_access_key_id,
+        aws_secret_access_key=aws.aws_secret_access_key,
+        aws_region=aws.aws_region,
+        aws_bucket_name=aws.aws_bucket_name,
+    )
     return jsonify({"status": "deleted"})
 
 @app.route('/evidence/<int:incident_id>/frames', methods=['GET'])
@@ -188,14 +213,10 @@ def get_evidence_frames(incident_id):
     con.close()
     if not row:
         return jsonify({"error": "Incident not found"}), 404
-    folder = pathlib.Path(row['folder'])
-    frames = []
-    for i in range(5):
-        frame_path = folder / f'frame_{i}.jpg'
-        if frame_path.exists():
-            with open(frame_path, 'rb') as f:
-                frames.append(base64.b64encode(f.read()).decode('utf-8'))
-    return jsonify({"incident": dict(row), "frames": frames})
+    incident = dict(row)
+    frame_urls = json.loads(incident['frame_urls']) if incident.get('frame_urls') else []
+    incident['frame_urls'] = frame_urls
+    return jsonify({"incident": incident, "frames": frame_urls})
 
 @app.route('/trigger-alert', methods=['POST'])
 def trigger_alert():
