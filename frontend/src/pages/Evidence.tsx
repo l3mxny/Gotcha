@@ -9,24 +9,32 @@ interface Incident {
   timestamp: string
   confidence: number
   folder: string
-}
-
-interface IncidentDetail {
-  incident: Incident
-  frames: string[]
+  frame_urls: string[]
+  description?: string | null
 }
 
 interface EvidenceProps {
   onEmergencyIntent?: () => void
 }
 
+function formatTimestamp(ts: string) {
+  const [date, time] = ts.split('_')
+  return { date: date ?? '', time: (time ?? '').replace(/-/g, ':') }
+}
+
+function confidenceColor(c: number) {
+  if (c >= 0.75) return '#f87171'
+  if (c >= 0.50) return '#fbbf24'
+  return '#4ade80'
+}
+
 export function Evidence({ onEmergencyIntent }: EvidenceProps) {
   const [incidents, setIncidents] = useState<Incident[]>([])
-  const [selected, setSelected] = useState<IncidentDetail | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [modal, setModal] = useState<Incident | null>(null)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [page, setPage] = useState(0)
-  const PAGE_SIZE = 10
+
+  const PAGE_SIZE = 12
   const totalPages = Math.ceil(incidents.length / PAGE_SIZE)
   const pageIncidents = incidents.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
@@ -37,32 +45,15 @@ export function Evidence({ onEmergencyIntent }: EvidenceProps) {
       .catch(() => {})
   }, [])
 
-  function loadIncident(id: number) {
-    setLoading(true)
-    fetch(`${BACKEND_URL}/evidence/${id}/frames`, { headers: { 'ngrok-skip-browser-warning': 'true' } })
-      .then(r => r.json())
-      .then((data: IncidentDetail) => {
-        setSelected(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }
-
   function deleteIncident(e: React.MouseEvent, id: number) {
     e.stopPropagation()
     fetch(`${BACKEND_URL}/evidence/${id}`, {
       method: 'DELETE',
-      headers: { 'ngrok-skip-browser-warning': 'true' }
+      headers: { 'ngrok-skip-browser-warning': 'true' },
     }).then(() => {
       setIncidents(prev => prev.filter(inc => inc.id !== id))
-      if (selected?.incident.id === id) setSelected(null)
+      if (modal?.id === id) setModal(null)
     }).catch(() => {})
-  }
-
-  function confidenceColor(c: number) {
-    if (c >= 0.75) return '#f87171'
-    if (c >= 0.50) return '#fbbf24'
-    return '#4ade80'
   }
 
   return (
@@ -79,84 +70,95 @@ export function Evidence({ onEmergencyIntent }: EvidenceProps) {
         />
       </header>
 
-      <div className="evidence-body">
-        <aside className="evidence-list">
-          {incidents.length === 0 ? (
-            <p className="evidence-empty">No incidents recorded yet.</p>
-          ) : (
-            <>
-              <div className="evidence-list__items">
-                {pageIncidents.map(inc => (
-                  <div
-                    key={inc.id}
-                    className={`evidence-item${selected?.incident.id === inc.id ? ' evidence-item--active' : ''}`}
-                    onClick={() => loadIncident(inc.id)}
-                  >
-                    <span className="evidence-item__time">{inc.timestamp.replace('_', ' ').replace(/-/g, ':')}</span>
-                    <span
-                      className="evidence-item__conf"
-                      style={{ color: confidenceColor(inc.confidence) }}
-                    >
-                      {(inc.confidence * 100).toFixed(0)}%
-                    </span>
-                    <button
-                      className="evidence-item__delete"
-                      onClick={(e) => deleteIncident(e, inc.id)}
-                      title="Delete"
-                    >✕</button>
+      <div className="evidence-scroll">
+        {incidents.length === 0 ? (
+          <p className="evidence-empty">No incidents recorded yet.</p>
+        ) : (
+          <>
+            <div className="evidence-grid">
+              {pageIncidents.map(inc => {
+                const { date, time } = formatTimestamp(inc.timestamp)
+                const thumbnail = inc.frame_urls?.[0]
+                return (
+                  <div key={inc.id} className="ev-card" onClick={() => setModal(inc)}>
+                    <div className="ev-card__img-wrap">
+                      {thumbnail
+                        ? <img className="ev-card__img" src={thumbnail} alt="frame" />
+                        : <div className="ev-card__img ev-card__img--empty" />
+                      }
+                    </div>
+                    <div className="ev-card__footer">
+                      <span className="ev-card__date">{date}</span>
+                      <span className="ev-card__time">{time}</span>
+                      <div className="ev-card__bottom">
+                        <span className="ev-card__conf" style={{ color: confidenceColor(inc.confidence) }}>
+                          {(inc.confidence * 100).toFixed(0)}% confidence
+                        </span>
+                        <button className="ev-card__delete-btn" onClick={e => deleteIncident(e, inc.id)}>Delete</button>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-              {totalPages > 1 && (
-                <div className="evidence-pager">
-                  <button
-                    className="evidence-pager__btn"
-                    onClick={() => setPage(p => Math.max(0, p - 1))}
-                    disabled={page === 0}
-                  >&#8592;</button>
-                  <span className="evidence-pager__info">{page + 1} / {totalPages}</span>
-                  <button
-                    className="evidence-pager__btn"
-                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                    disabled={page === totalPages - 1}
-                  >&#8594;</button>
-                </div>
-              )}
-            </>
-          )}
-        </aside>
+                )
+              })}
+            </div>
 
-        <main className="evidence-frames">
-          {loading && <p className="evidence-empty">Loading frames...</p>}
-          {!loading && !selected && (
-            <p className="evidence-empty">Select an incident to view frames.</p>
-          )}
-          {!loading && selected && (
-            <>
-              <p className="evidence-frames__label">
-                {selected.incident.timestamp.replace('_', ' ')} —{' '}
-                <span style={{ color: confidenceColor(selected.incident.confidence) }}>
-                  {(selected.incident.confidence * 100).toFixed(0)}% confidence
-                </span>
-              </p>
-              <div className="evidence-filmstrip">
-                {selected.frames.map((f, i) => (
-                  <img
-                    key={i}
-                    className="evidence-frame"
-                    src={f}
-                    alt={`Frame ${i + 1}`}
-                    onClick={() => setLightbox(f)}
-                  />
-                ))}
+            {totalPages > 1 && (
+              <div className="evidence-pager">
+                <button
+                  className="evidence-pager__btn"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                >&#8592;</button>
+                <span className="evidence-pager__info">{page + 1} / {totalPages}</span>
+                <button
+                  className="evidence-pager__btn"
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page === totalPages - 1}
+                >&#8594;</button>
               </div>
-            </>
-          )}
-        </main>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Frame modal */}
+      {modal && (
+        <div className="ev-modal-overlay" onClick={() => setModal(null)}>
+          <div className="ev-modal" onClick={e => e.stopPropagation()}>
+            <div className="ev-modal__header">
+              <div className="ev-modal__meta">
+                <span className="ev-modal__time">{formatTimestamp(modal.timestamp).date} {formatTimestamp(modal.timestamp).time}</span>
+                <span className="ev-modal__conf" style={{ color: confidenceColor(modal.confidence) }}>
+                  {(modal.confidence * 100).toFixed(0)}% confidence
+                </span>
+              </div>
+              <div className="ev-modal__actions">
+                <button className="ev-modal__delete" onClick={e => deleteIncident(e, modal.id)}>Delete</button>
+                <button className="ev-modal__close" onClick={() => setModal(null)}>✕</button>
+              </div>
+            </div>
+            {modal.description && (
+              <p className="ev-modal__desc">{modal.description}</p>
+            )}
+            <div className="ev-modal__frames">
+              {modal.frame_urls.map((url, i) => (
+                <img
+                  key={i}
+                  className="ev-modal__frame"
+                  src={url}
+                  alt={`Frame ${i + 1}`}
+                  onClick={() => setLightbox(url)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
       {lightbox && (
         <div className="evidence-lightbox" onClick={() => setLightbox(null)}>
-          <img className="evidence-lightbox__img" src={lightbox} alt="Zoomed frame" />
+          <img className="evidence-lightbox__img" src={lightbox} alt="Zoomed" />
         </div>
       )}
     </div>
